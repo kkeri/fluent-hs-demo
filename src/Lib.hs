@@ -1,14 +1,13 @@
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# LANGUAGE InstanceSigs #-}
 module Lib
-    ( process
+    ( interact
+    , interact2handler
+    , process
     ) where
 
 
 import           Data.Char
-import           Prelude   hiding (concat, interact)
+import           Prelude   hiding (interact)
 
 
 ------------------------------------------------------------------------------
@@ -51,7 +50,6 @@ data Tm
 ------------------------------------------------------------------------------
 
 instance Show Tm where
-  show :: Tm -> String
   show (Text s)          = s
   show (Tok (Name s))    = s
   show (Tok (Op s))      = s
