@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE InstanceSigs #-}
 module Lib
     ( process
     ) where
@@ -39,29 +40,62 @@ data Tm
   | Tokens             -- Tokenizing a source text
   | ParseLists         -- Parse lists, passes anything else
   | ParseListBody      -- Build a list from the following primary terms
-  | Pol                -- Polarize a stream of terms
+  | Values             -- Classifies a stream of terms as either positive or negative values
 
   | Fix                -- Fixed-point combinator
   | Call               -- Flatten and interpret the following list of terms
-  -- Special terms
-  | Fail               -- Local failure
 
+
+------------------------------------------------------------------------------
+-- Printer
+------------------------------------------------------------------------------
+
+instance Show Tm where
+  show :: Tm -> String
+  show (Text s)          = s
+  show (Tok (Name s))    = s
+  show (Tok (Op s))      = s
+  show (Tok (Bracket c)) = [c]
+  show (Pair a b)        = "{" ++ showPair a b ++ "}"
+  show Nil               = "{}"
+
+  show Cons              = "cons"
+  show Decons            = "decons"
+
+  show Dup               = "dup"
+  show Swap              = "swap"
+  show Drop              = "drop"
+
+  show Tokens            = "tokens"
+  show ParseLists        = "parseLists"
+  show ParseListBody     = "parseListBody"
+  show Values            = "Values"
+
+  show Fix               = "fix"
+  show Call              = "call"
+
+showPair :: Tm -> Tm -> String
+showPair a (Pair b c) = show a ++ showPair b c
+showPair a Nil        = show a
+showPair a b          = show a ++ " : " ++ show b
+
+showTerms :: [Tm] -> String
+showTerms []       = ""
+showTerms [t]      = show t
+showTerms (t : ts) = show t ++ " " ++ showTerms ts
 
 ------------------------------------------------------------------------------
 -- Interpreter
 ------------------------------------------------------------------------------
 
--- Primary values
-data PVal
+-- Values
+data Value
   = Pos Tm             -- positive value
   | Neg Tm             -- negative value
-
-type Global = Tm
+  | Fail               -- failure
 
 -- Programs
--- Just []: empty/successful program
--- Nothing: failed program
-type Prog = Maybe [PVal]
+type Prog = [Value]
 
 -- Continuation
 type Cont = Prog -> BreakPoint
@@ -79,92 +113,87 @@ data BreakPoint
   | BInput Cont        -- input is required, no more output can be produced
   | BFail              -- evaluation has failed
 
--- Concatenate two programs.
-concat :: Prog -> Prog -> Prog
-concat Nothing _         = Nothing
-concat _ Nothing         = Nothing
-concat (Just a) (Just b) = Just (a ++ b)
-
 
 ------------------------------------------------------------------------------
 -- Interactions
 ------------------------------------------------------------------------------
 
 -- Compute the interaction of two terms.
-interact :: Global -> Tm -> Tm -> Prog
-interact g n p = case (n, p) of
+interact :: Tm -> Tm -> Prog
+interact n p = case (n, p) of
 
-  (Cons, a)          -> Just [Neg $ Pair Cons a]
-  (Pair Cons a, b)   -> Just [Pos $ Pair a b]
-  (Decons, Pair a b) -> Just [Pos a, Pos b]
+  (Cons, a)                          -> [Neg $ Pair Cons a]
+  (Pair Cons a, b)                   -> [Pos $ Pair a b]
+  (Decons, Pair a b)                 -> [Pos a, Pos b]
 
-  (Dup, a)           -> Just [Pos a, Pos a]
-  (Drop, _)          -> Just []
-  (Swap, a)          -> Just [Neg $ Pair Swap a]
+  (Dup, a)                           -> [Pos a, Pos a]
+  (Drop, _)                          -> []
+  (Swap, a)                          -> [Neg $ Pair Swap a]
 
-  (Tokens, Text s)   -> tokens s
-  (Tokens, _)        -> Nothing
+  (Tokens, Text s)                   -> tokens s
+  (Tokens, _)                        -> [Fail]
 
-  (ParseLists, Tok (Bracket '{')) -> Just [Neg ParseListBody]
-  (ParseLists, a)    -> Just [Pos a, Neg ParseLists]
+  (ParseLists, Tok (Bracket '{'))    -> [Neg ParseListBody]
+  (ParseLists, a)                    -> [Pos a, Neg ParseLists]
 
-  (ParseListBody, Tok (Bracket '}')) -> Just [Pos Nil, Neg ParseLists]
-  (ParseListBody, a) -> Just [Neg Cons, Pos a, Neg ParseListBody]
+  (ParseListBody, Tok (Bracket '}')) -> [Pos Nil, Neg ParseLists]
+  (ParseListBody, a)                 -> [Neg Cons, Pos a, Neg ParseListBody]
 
-  (Pair Swap a, b)   -> Just [Pos b, Pos a]
-  (Fix, a)           -> Just [Neg Call, Pos a, Pos $ Pair Fix a]
+  (Pair Swap a, b)                   -> [Pos b, Pos a]
+  (Fix, a)                           -> [Neg Call, Pos a, Pos $ Pair Fix a]
 
-  (Call, a)          -> call a
+  (Call, a)                          -> call a
 
-  (Pol, a)           -> concat (polarized a) (Just [Neg Pol])
+  (Values, a)                        -> [value a, Neg Values]
 
   -- default
-  _                  -> Nothing
+  _                                  -> [Fail]
 
 -- Extract the next token from a source text.
 tokens :: String -> Prog
 tokens s = case s of
-  [] -> Just []
+  [] -> []
   c : cs | isSpace c -> tokens cs
   c : cs | c == '#' -> let (_, rest) = span (/= '\n') cs in tokens rest
   c : cs | c `elem` opChar -> let (tok, rest) = span (`elem` opChar) cs
-                              in Just [Pos $ Tok (Op (c:tok)), Neg Tokens, Pos $ Text rest]
+                              in [Pos $ Tok (Op (c:tok)), Neg Tokens, Pos $ Text rest]
   c : cs | isAlpha c -> let (tok, rest) = span isAlphaNum cs
-                        in Just [Pos $ Tok (Name (c:tok)), Neg Tokens, Pos $ Text rest]
-  c : cs | c `elem` "(){}[]" -> Just [Pos $ Tok (Bracket c), Neg Tokens, Pos $ Text cs]
-  _ -> Nothing -- unexpected character
+                        in [Pos $ Tok (Name (c:tok)), Neg Tokens, Pos $ Text rest]
+  c : cs | c `elem` "(){}[]" -> [Pos $ Tok (Bracket c), Neg Tokens, Pos $ Text cs]
+  _ -> [Fail] -- unexpected character
 
+opChar :: String
 opChar = "+-*=!?/\\|<>$@#%^&~:"
 
 -- Flatten a list and compute its meaning.
 call :: Tm -> Prog
-call (Pair a b) = concat (polarized a) (call b)
-call Nil        = Just []
-call a          = polarized a
+call (Pair a b) = value a : call b
+call Nil        = []
+call a          = [value a]
 
-polarized :: Tm -> Prog
-polarized (Tok t) = polarizedTok t
-polarized a       = Just [Pos a]
+value :: Tm -> Value
+value (Tok t) = valueOfTok t
+value a       = Pos a
 
-polarizedTok :: Tok -> Prog
-polarizedTok (Name "cons")          = Just [Neg Cons]
-polarizedTok (Name "decons")        = Just [Neg Decons]
+valueOfTok :: Tok -> Value
+valueOfTok (Name "cons")          = Neg Cons
+valueOfTok (Name "decons")        = Neg Decons
 
-polarizedTok (Name "dup")           = Just [Neg Dup]
-polarizedTok (Name "swap")          = Just [Neg Swap]
-polarizedTok (Name "drop")          = Just [Neg Drop]
+valueOfTok (Name "dup")           = Neg Dup
+valueOfTok (Name "swap")          = Neg Swap
+valueOfTok (Name "drop")          = Neg Drop
 
-polarizedTok (Name "tokens")        = Just [Neg Pol]
-polarizedTok (Name "parseLists")    = Just [Neg Pol]
-polarizedTok (Name "parseListBody") = Just [Neg Pol]
-polarizedTok (Name "pol")           = Just [Neg Pol]
+valueOfTok (Name "tokens")        = Neg Tokens
+valueOfTok (Name "parseLists")    = Neg ParseLists
+valueOfTok (Name "parseListBody") = Neg ParseListBody
+valueOfTok (Name "Values")        = Neg Values
 
-polarizedTok (Name "fix")           = Just [Neg Fix]
-polarizedTok (Name "call")          = Just [Neg Call]
+valueOfTok (Name "fix")           = Neg Fix
+valueOfTok (Name "call")          = Neg Call
 
-polarizedTok (Name "fail")          = Nothing
+valueOfTok (Name "fail")          = Fail
 
-polarizedTok t                      = Just [Pos $ Tok t]
+valueOfTok t                      = Pos $ Tok t
 
 
 ------------------------------------------------------------------------------
@@ -174,18 +203,23 @@ polarizedTok t                      = Just [Pos $ Tok t]
 -- Create a continuation from a stack and an input stream.
 -- The evaluation strategy is "operator side to operand side"
 -- A stack is a list of negative values.
-makeCont :: [Tm] -> [PVal] -> Cont
-makeCont _ _ Nothing          = BFail
-makeCont stk input (Just arg) = continue stk (arg ++ input)
+makeCont :: [Tm] -> [Value] -> Cont
+makeCont stk input arg = continue stk (arg ++ input)
 
 -- Continue the evaluation of a program using "operator side to operand side"
 -- strategy until reaching a breakpoint.
-continue :: [Tm] -> [PVal] -> BreakPoint
+continue :: [Tm] -> [Value] -> BreakPoint
 continue stk input = case (stk, input) of
-  (stk, Neg t:input)   -> continue (t:stk) input          -- negative values are pushed to the program stack
-  (u:stk, Pos t:input) -> BInter t u (makeCont stk input) -- positive active values interact with the top of the stack
-  ([], Pos t:input)    -> BOutput t (makeCont [] input) -- positive passive values are sent to the output
-  (stk, [])            -> BInput (makeCont stk [])    -- no more input, input is required
+  -- failure stops evaluation
+  (_, Fail:_)          -> BFail
+  -- negative values are pushed to the operator stack
+  (stk, Neg n:input)   -> continue (n:stk) input
+  -- active operator terms interact with the top of the stack
+  (n:stk, Pos p:input) -> BInter n p (makeCont stk input)
+  -- passive operator terms are sent to the output
+  ([], Pos p:input)    -> BOutput p (makeCont [] input)
+  -- more input is required
+  (stk, [])            -> BInput (makeCont stk [])
 
 -- Create an effect handler from an interaction handler.
 interact2handler :: Interact -> Handler
@@ -193,9 +227,10 @@ interact2handler ih n p k = k (ih n p)
 
 -- Run a program on an input stream and produce an output stream.
 process :: Handler -> Prog -> String -> String
-process handle p s = run' (makeCont [] (concat p (Just [Pos (Text s)])))
+process handle p s = showTerms $ process' $ continue [] (p ++ [Pos (Text s)])
   where
-  run' (BInter p n k) = run' (handle p n k)
-  run' (BOutput p k)  = p : run' (k (Just []))
-  run' (BInput _)     = []      -- the whole input stream is consumed, stop
-  run' BFail          = [Fail]  -- don't revoke the output so far but stop with a failure
+  process' :: BreakPoint -> [Tm]
+  process' (BInter p n k) = process' (handle p n k)
+  process' (BOutput p k)  = p : process' (k [])
+  process' (BInput _)     = []  -- the whole input stream is consumed, stop
+  process' BFail          = [Tok (Name "fail")]
