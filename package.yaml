@@ -2,9 +2,9 @@ name:                fluent-hs-demo
 version:             0.1.0.0
 github:              "kkeri/fluent-hs-demo"
 license:             BSD-3-Clause
-author:              "Author name here"
+author:              "Kalman Keri"
 maintainer:          "example@example.com"
-copyright:           "2024 Author name here"
+copyright:           "2024 Kalman Keri"
 
 extra-source-files:
 - README.md
@@ -39,17 +39,6 @@ executables:
   fluent-hs-demo-exe:
     main:                Main.hs
     source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - fluent-hs-demo
-
-tests:
-  fluent-hs-demo-test:
-    main:                Spec.hs
-    source-dirs:         test
     ghc-options:
     - -threaded
     - -rtsopts
