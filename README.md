@@ -109,7 +109,10 @@ This property facilitates metaprogramming,
 and makes it easier to write programs that communicate via data structures.
 
 To parse and execute source code given as a string `s`, one has to execute the
-following program:
+following program.
+This program is a *kernel*, that is, a program scheme built into the interpreter.
+It is necessary to have a kernel because the source code is a data stream,
+and the kernel is the only way to interpret it as a program.
 
 ~~~
 pol nest tokens s
@@ -122,7 +125,8 @@ For example, `coll a b c )` is translated to `cons a cons b cons c ()`,
 where `()` is the empty list.
 `nest` and `coll` interplay to parse nested lists.
 `pol` assigns polarities to terms, as described below.
-Without `pol`, the program would be interpreted as a data stream.
+Without `pol`, the source code would be interpreted as a data stream
+and not as a program.
 
 
 ## Program algebra
