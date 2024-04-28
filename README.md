@@ -63,7 +63,7 @@ List       ::= "[" Program "]"
 
 Token      ::= Name | Bracket | OpSym | String
 Name       ::= [a-z][a-z0-9]*
-Bracket    ::= "[" | "]"
+Bracket    ::= "(" | ")"
 OpSym      ::= [+-*=!?/\\|<>$@#%^&~:]+
 String     ::= '"' [^"]* '"'
 ~~~
@@ -86,13 +86,16 @@ In the following table, `a` and `b` are arguments, `t` and `u` are terms.
 | `drop a ->`                     | Drop a term.                            |
 | `tokens "" -> `                 | Finish tokenizing a string.             |
 | `tokens s -> a tokens s'`       | Split a token from a string.            |
-| `nest "(" -> coll nest`         | Start parsing a list.                   |
+| `nest ( -> coll nest`           | Start parsing a list.                   |
 | `nest a -> a nest`              | Pass anything else.                     |
-| `coll ")" -> ()`                | End parsing a list.                     |
+| `coll ) -> ()`                  | End parsing a list.                     |
 | `coll a -> cons a coll`         | Collect all other terms into a list.    |
 | `pol a -> v pol`                | Assigns polarity to terms.              |
 | `fix a -> apply a (fix a)`      | Fixed-point combinator.                 |
 | `apply (a b...) -> v w ...`     | Convert a list to a sequence of values. |
+
+Note that in `coll ) -> ()`, `)` is a token, while `()` is the empty list.
+In `nest (`, `(` is also a token.
 
 Some combinators are variadic, that is, they consume or produce an arbitrary
 number of terms.
