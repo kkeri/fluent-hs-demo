@@ -2,9 +2,7 @@
 
 module Core
   ( Tm(..)
-  , Tok(..)
   , interactTm
-  , defHandler
   ) where
 
 import           Data.Char (isAlpha, isAlphaNum, isSpace)
@@ -14,70 +12,73 @@ import           Eval
 -- Types
 ------------------------------------------------------------------------------
 
-data Tok
-  = Name String    -- Identifier (starts with lowercase)
+-- Terms
+-- Syntactically, a program is a sequence of terms.
+data Tm
+  -- Tokens are embedded into the term type for convenience
+  = Name String     -- Identifier (starts with lowercase)
   | Op String       -- Operator symbol
   | Bracket Char    -- Bracket
-  deriving Eq
-
--- Core syntax
-data Tm
-  -- Tokenizer
-  = Text String       -- Source text
-  | Tok Tok           -- Token
-  -- Lists
-  | Pair Tm Tm        -- list
-  | Nil               -- Empty list
+  | Str String      -- String literal
+  -- Positive special terms
+  | Pair Tm Tm      -- Building block of lists
+  | Nil             -- Empty list
+  | EndNorm         -- End a normalization region
   -- Combinators have dedicated constructors for better readability and performance,
-  -- however they could be represented as tokens as well.
-  | Cons               -- Prepends a term to a list
-  | Decons             -- Splits a list into its head and tail
+  -- although they could be represented as tokens as well.
+  | Cons            -- Prepends a term to a list
+  | Uncons          -- Splits a list into its head and tail
 
-  | Dup                -- duplicate the following term
-  | Swap               -- swap the two following terms
-  | Drop               -- drop the following term
+  | Dup             -- duplicate the following term
+  | Swap            -- swap the two following terms
+  | Drop            -- drop the following term
 
-  | Tokens             -- Tokenizing a source text
-  | ParseLists         -- Parse lists, passes anything else
-  | ParseListBody      -- Build a list from the following primary terms until a closing bracket
-  | Values             -- Classifies a stream of terms as either positive or negative values
+  | Tokens          -- Tokenizing a source text
+  | Nest            -- Parse lists, passes anything else
+  | Coll            -- Conses together the following terms until a closing bracket
+  | Pol             -- Assigns polarity to a stream of terms
 
-  | Fix                -- Fixed-point combinator
-  | Apply              -- Flatten and interpret a list
+  | Fix             -- Fixed-point combinator
+  | Apply           -- Flatten and interpret a list
+  | StartNorm       -- Begin a normalization region
 
+  deriving (Eq)
 
 ------------------------------------------------------------------------------
 -- Utilities
 ------------------------------------------------------------------------------
 
 instance Show Tm where
-  show (Text s)          = s
-  show (Tok (Name s))    = s
-  show (Tok (Op s))      = s
-  show (Tok (Bracket c)) = [c]
-  show (Pair a b)        = "{" ++ showPair a b ++ "}"
-  show Nil               = "{}"
+  show (Name s)      = s
+  show (Op s)        = s
+  show (Bracket c)   = [c]
+  show (Str s)       = s
 
-  show Cons              = "cons"
-  show Decons            = "decons"
+  show (Pair a b)    = "(" ++ showPair a b ++ ")"
+  show Nil           = "()"
 
-  show Dup               = "dup"
-  show Swap              = "swap"
-  show Drop              = "drop"
+  show Cons          = "cons"
+  show Uncons        = "uncons"
 
-  show Tokens            = "tokens"
-  show ParseLists        = "parseLists"
-  show ParseListBody     = "parseListBody"
-  show Values            = "Values"
+  show Dup           = "dup"
+  show Swap          = "swap"
+  show Drop          = "drop"
 
-  show Fix               = "fix"
-  show Apply             = "apply"
+  show Tokens        = "tokens"
+  show Nest          = "nest"
+  show Coll          = "coll"
+  show Pol           = "pol"
+
+  show StartNorm     = "startNorm"
+  show EndNorm       = "endNorm"
+
+  show Fix           = "fix"
+  show Apply         = "apply"
 
 showPair :: Tm -> Tm -> String
-showPair a (Pair b c) = show a ++ " " ++ showPair b c
+showPair a (Pair b c) = show a <> " " ++ showPair b c
 showPair a Nil        = show a
-showPair a b          = show a ++ " ; " ++ show b
-
+showPair a b          = show a ++ " . " ++ show b
 
 ------------------------------------------------------------------------------
 -- Interactions
@@ -87,98 +88,88 @@ showPair a b          = show a ++ " ; " ++ show b
 interactTm :: Interact Tm
 interactTm n p = case (n, p) of
 
-  (Cons, a)                          -> Just [Neg $ Pair Cons a]
-  (Pair Cons a, b)                   -> Just [Pos $ Pair a b]
-  (Decons, Pair a b)                 -> Just [Pos a, Pos b]
-  (Decons, _)                        -> Just [Fail]
+  (StartNorm, EndNorm)  -> Just []
+  (StartNorm, a)        -> Just [Pos a, Neg StartNorm]
+  (a, EndNorm)          -> Just ([Pos EndNorm] ++ flatPA a)
 
-  (Dup, a)                           -> Just [Pos a, Pos a]
-  (Drop, _)                          -> Just []
-  (Swap, a)                          -> Just [Neg $ Pair Swap a]
-  (Pair Swap a, b)                   -> Just [Pos b, Pos a]
+  (Cons, a)             -> Just [Neg $ Pair Cons a]
+  (Pair Cons a, b)      -> Just [Pos $ Pair a b]
+  (Uncons, Pair a b)    -> Just [Pos a, Pos b]
+  (Uncons, _)           -> Just [runtimeError "uncons: not a pair: " p]
 
-  (Tokens, Text s)                   -> Just (tokens s)
-  (Tokens, _)                        -> Just [Fail]
+  (Dup, a)              -> Just [Pos a, Pos a]
+  (Drop, _)             -> Just []
+  (Swap, a)             -> Just [Neg $ Pair Swap a]
+  (Pair Swap a, b)      -> Just [Pos b, Pos a]
 
-  (ParseLists, Tok (Bracket '{'))    -> Just [Neg ParseListBody]
-  (ParseLists, a)                    -> Just [Pos a, Neg ParseLists]
+  (Tokens, Str s)       -> Just (tokens s)
+  (Tokens, _)           -> Just [runtimeError "tokens: not a character: " p]
 
-  (ParseListBody, Tok (Bracket '}')) -> Just [Pos Nil, Neg ParseLists]
-  (ParseListBody, a)                 -> Just [Neg Cons, Pos a, Neg ParseListBody]
+  (Nest, Bracket '(')   -> Just [Neg Coll, Neg Nest]
+  (Nest, a)             -> Just [Pos a, Neg Nest]
 
-  (Fix, f)                           -> Just [Neg Apply, Pos f, Pos $ Pair Fix f]
+  (Coll, Bracket ')')   -> Just [Pos Nil]
+  (Coll, a)             -> Just [Neg Cons, Pos a, Neg Coll]
 
-  (Apply, a)                         -> Just (apply a)
+  (Pol, a)              -> Just [pol a, Neg Pol]
 
-  (Values, a)                        -> Just [value a, Neg Values]
+  (Fix, f)              -> Just [Neg Apply, Pos f, Pos $ Pair Fix f]
+  (Apply, a)            -> Just (apply a)
+
 
   -- undefined interactions
-  _                                  -> Nothing
+  _                     -> Nothing
 
--- Split a string to tokens.
+runtimeError :: String -> Tm -> Value Tm
+runtimeError msg t = Error $ Pair (Str msg) t
+
+-- Returns a program that lazily splits a string to tokens.
 tokens :: String -> Prog Tm
 tokens s = case s of
   [] -> []
   c : cs | isSpace c -> tokens cs
   c : cs | c == '#' -> let (_, rest) = span (/= '\n') cs in tokens rest
   c : cs | c `elem` opChar -> let (tok, rest) = span (`elem` opChar) cs
-                              in [Pos $ Tok (Op (c:tok)), Neg Tokens, Pos $ Text rest]
+                              in [Pos $ Op (c:tok), Neg Tokens, Pos $ Str rest]
   c : cs | isAlpha c -> let (tok, rest) = span isAlphaNum cs
-                        in [Pos $ Tok (Name (c:tok)), Neg Tokens, Pos $ Text rest]
-  c : cs | c `elem` "(){}[]" -> [Pos $ Tok (Bracket c), Neg Tokens, Pos $ Text cs]
-  _ -> [Fail] -- unexpected character
+                        in [Pos $ Name (c:tok), Neg Tokens, Pos $ Str rest]
+  c : cs | c `elem` "(){}[]" -> [Pos $ Bracket c, Neg Tokens, Pos $ Str cs]
+  c : _ -> [runtimeError "unexpected character" (Str [c])]
 
 opChar :: String
 opChar = "+-*=!?/\\|<>$@#%^&~:"
 
--- Flatten a list and interprets it.
+-- Flatten a list and interpret it.
 apply :: Tm -> Prog Tm
-apply (Pair a b) = value a : apply b
+apply (Pair a b) = pol a : apply b
 apply Nil        = []
-apply a          = [value a]
+apply a          = [pol a]
 
-value :: Tm -> Value Tm
-value (Tok t) = valueOfTok t
-value a       = Pos a
+-- Assign polarity to a term.
+pol :: Tm -> Value Tm
+pol (Name "cons")      = Neg Cons
+pol (Name "uncons")    = Neg Uncons
 
-valueOfTok :: Tok -> Value Tm
-valueOfTok (Name "cons")          = Neg Cons
-valueOfTok (Name "decons")        = Neg Decons
+pol (Name "dup")       = Neg Dup
+pol (Name "swap")      = Neg Swap
+pol (Name "drop")      = Neg Drop
 
-valueOfTok (Name "dup")           = Neg Dup
-valueOfTok (Name "swap")          = Neg Swap
-valueOfTok (Name "drop")          = Neg Drop
+pol (Name "tokens")    = Neg Tokens
+pol (Name "nest")      = Neg Nest
+pol (Name "coll")      = Neg Coll
+pol (Name "pol")       = Neg Pol
 
-valueOfTok (Name "tokens")        = Neg Tokens
-valueOfTok (Name "parseLists")    = Neg ParseLists
-valueOfTok (Name "parseListBody") = Neg ParseListBody
-valueOfTok (Name "Values")        = Neg Values
+pol (Name "fix")       = Neg Fix
+pol (Name "apply")     = Neg Apply
 
-valueOfTok (Name "fix")           = Neg Fix
-valueOfTok (Name "apply")         = Neg Apply
+pol (Name "startNorm") = Neg StartNorm
+pol (Name "endNorm")   = Pos EndNorm
 
-valueOfTok (Name "fail")          = Fail
+-- Everything else is a positive value
+pol a                  = Pos a
 
-valueOfTok t                      = Pos $ Tok t
-
-
-------------------------------------------------------------------------------
--- Effect handlers
-------------------------------------------------------------------------------
-
-type Env = [(String, Tm)]
-
--- Add user defined combinators to the language.
-defHandler :: Env -> Handler Tm
-defHandler env p = case p of
-  -- partial application of `def` to a name
-  PEffect (Tok (Name "def")) (Tok (Name n)) k ->
-    defHandler env $ k [Neg $ Pair (Tok (Name "def")) (Tok (Name n))]
-  -- define name by adding the definition to the environment
-  PEffect (Pair (Tok (Name "def")) (Tok (Name n))) t k ->
-    defHandler ((n, t) : env) (k [])
-  -- apply a defined name to a term
-  PEffect (Tok (Name n)) t k -> case lookup n env of
-    Just v  -> defHandler env $ k [Neg Apply, Pos v, Pos t]
-    Nothing -> p
-  p' -> p'
+-- Flatten a partially applied combinator.
+flatPA :: Tm -> Prog Tm
+flatPA (Pair a b) = Pos a : flatPA b
+flatPA Nil        = []
+flatPA a          = [Pos a]
