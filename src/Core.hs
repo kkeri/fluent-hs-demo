@@ -7,6 +7,7 @@ module Core
 
 import           Data.Char (isAlpha, isAlphaNum, isSpace)
 import           Eval
+import           Prelude   hiding (False, True)
 
 ------------------------------------------------------------------------------
 -- Types
@@ -20,12 +21,14 @@ data Tm
   | Op String       -- Operator symbol
   | Bracket Char    -- Bracket
   | Str String      -- String literal
-  -- Positive special terms
+  -- Lists
   | Pair Tm Tm      -- Building block of lists
   | Nil             -- Empty list
+  -- Positive special terms
+  | True            -- Boolean true
+  | False           -- Boolean false
   | EndNorm         -- End a normalization region
-  -- Combinators have dedicated constructors for better readability and performance,
-  -- although they could be represented as tokens as well.
+  -- Negative special terms
   | Cons            -- Prepends a term to a list
   | Uncons          -- Splits a list into its head and tail
 
@@ -42,6 +45,8 @@ data Tm
   | Apply           -- Flatten and interpret a list
   | StartNorm       -- Begin a normalization region
 
+  | Cond            -- Conditional
+
   deriving (Eq)
 
 ------------------------------------------------------------------------------
@@ -49,31 +54,35 @@ data Tm
 ------------------------------------------------------------------------------
 
 instance Show Tm where
-  show (Name s)      = s
-  show (Op s)        = s
-  show (Bracket c)   = [c]
-  show (Str s)       = s
+  show (Name s)    = s
+  show (Op s)      = s
+  show (Bracket c) = [c]
+  show (Str s)     = s
 
-  show (Pair a b)    = "(" ++ showPair a b ++ ")"
-  show Nil           = "()"
+  show (Pair a b)  = "(" ++ showPair a b ++ ")"
+  show Nil         = "()"
 
-  show Cons          = "cons"
-  show Uncons        = "uncons"
+  show Cons        = "cons"
+  show Uncons      = "uncons"
 
-  show Dup           = "dup"
-  show Swap          = "swap"
-  show Drop          = "drop"
+  show Dup         = "dup"
+  show Swap        = "swap"
+  show Drop        = "drop"
 
-  show Tokens        = "tokens"
-  show Nest          = "nest"
-  show Coll          = "coll"
-  show Pol           = "pol"
+  show Tokens      = "tokens"
+  show Nest        = "nest"
+  show Coll        = "coll"
+  show Pol         = "pol"
 
-  show StartNorm     = "startNorm"
-  show EndNorm       = "endNorm"
+  show StartNorm   = "startNorm"
+  show EndNorm     = "endNorm"
 
-  show Fix           = "fix"
-  show Apply         = "apply"
+  show Fix         = "fix"
+  show Apply       = "apply"
+
+  show True        = "true"
+  show False       = "false"
+  show Cond        = "cond"
 
 showPair :: Tm -> Tm -> String
 showPair a (Pair b c) = show a <> " " ++ showPair b c
@@ -88,37 +97,42 @@ showPair a b          = show a ++ " . " ++ show b
 interactTm :: Interact Tm
 interactTm n p = case (n, p) of
 
-  (StartNorm, EndNorm)  -> Just []
-  (StartNorm, a)        -> Just [Pos a, Neg StartNorm]
-  (a, EndNorm)          -> Just ([Pos EndNorm] ++ flatPA a)
+  (StartNorm, EndNorm) -> Just []
+  (StartNorm, a)       -> Just [Pos a, Neg StartNorm]
+  (a, EndNorm)         -> Just (Pos EndNorm : flatPA a)
 
-  (Cons, a)             -> Just [Neg $ Pair Cons a]
-  (Pair Cons a, b)      -> Just [Pos $ Pair a b]
-  (Uncons, Pair a b)    -> Just [Pos a, Pos b]
-  (Uncons, _)           -> Just [runtimeError "uncons: not a pair: " p]
+  (Cons, a)            -> Just [Neg $ Pair Cons a]
+  (Pair Cons a, b)     -> Just [Pos $ Pair a b]
+  (Uncons, Pair a b)   -> Just [Pos a, Pos b]
+  (Uncons, _)          -> Just [runtimeError "uncons: not a pair: " p]
 
-  (Dup, a)              -> Just [Pos a, Pos a]
-  (Drop, _)             -> Just []
-  (Swap, a)             -> Just [Neg $ Pair Swap a]
-  (Pair Swap a, b)      -> Just [Pos b, Pos a]
+  (Dup, a)             -> Just [Pos a, Pos a]
+  (Drop, _)            -> Just []
+  (Swap, a)            -> Just [Neg $ Pair Swap a]
+  (Pair Swap a, b)     -> Just [Pos b, Pos a]
 
-  (Tokens, Str s)       -> Just (tokens s)
-  (Tokens, _)           -> Just [runtimeError "tokens: not a character: " p]
+  (Tokens, Str s)      -> Just (tokens s)
+  (Tokens, _)          -> Just [runtimeError "tokens: not a character: " p]
 
-  (Nest, Bracket '(')   -> Just [Neg Coll, Neg Nest]
-  (Nest, a)             -> Just [Pos a, Neg Nest]
+  (Nest, Bracket '(')  -> Just [Neg Coll, Neg Nest]
+  (Nest, a)            -> Just [Pos a, Neg Nest]
 
-  (Coll, Bracket ')')   -> Just [Pos Nil]
-  (Coll, a)             -> Just [Neg Cons, Pos a, Neg Coll]
+  (Coll, Bracket ')')  -> Just [Pos Nil]
+  (Coll, a)            -> Just [Neg Cons, Pos a, Neg Coll]
 
-  (Pol, a)              -> Just [pol a, Neg Pol]
+  (Pol, a)             -> Just [pol a, Neg Pol]
 
-  (Fix, f)              -> Just [Neg Apply, Pos f, Pos $ Pair Fix f]
-  (Apply, a)            -> Just (apply a)
+  (Fix, f)             -> Just [Neg Apply, Pos f, Pos $ Pair Fix f]
+  (Apply, a)           -> Just (apply a)
+
+  (Cond, a)            -> Just [Neg $ Pair Cond a]
+  (Pair Cond (Pair a _), True) -> Just [Pos a]
+  (Pair Cond (Pair _ b), _)    -> Just [Pos b]
+  (Pair Cond a, b)     -> Just [Pos $ Pair Cond $ Pair a b]
 
 
   -- undefined interactions
-  _                     -> Nothing
+  _                    -> Nothing
 
 runtimeError :: String -> Tm -> Value Tm
 runtimeError msg t = Error $ Pair (Str msg) t
