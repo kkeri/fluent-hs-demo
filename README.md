@@ -1,13 +1,17 @@
 # A Fluent demo interpreter written in Haskell
 
-This is a demo implementation of the Fluent language.
-It is not a faithful implementation of the full language, but a simplified version
+This is a demo interpreter for the Fluent core language.
+It is not a reference implementation of the language, but a simplified version
 that demonstrates the core ideas and the related programming techniques.
-Clear mapping of concepts into source code is prioritized over performance.
+Clear mapping of concepts into source code is a goal of this project,
+but runtime efficiency is not a priority.
 
-This document starts with an introduction to the language and its algebraic properties,
-then it describes the evaluation strategies and the normalisation process.
-Finally, it gives a brief overview of the interpreter.
+## How to build and run
+
+To build the project, you need the Haskell build tool `stack`.
+If you don't have it installed, you can get it from https://docs.haskellstack.org/en/stable/README/.
+
+To run the interpreter, use the `stack run` command in the main directory of the project.
 
 
 ## Concatenative programming and Fluent
@@ -25,9 +29,9 @@ defined using a rewrite semantics [5], and in the concatenative community
 there seems to be an agreement that such rewriting systems are confluent.
 
 The terms of a concatenative language are informally divided into two
-categories, which are variously called combinators and arguments, 
-or operators and operands.
-Operands are pushed onto the stack, while operators
+categories, which are called combinators and arguments, 
+operators and operands or various other names.
+Operands "push themselves" onto the stack, while operators
 pop values from the stack and push new values in their place.
 Most concatenative languages use postfix notation.
 Concatenative languages are sometimes contrasted with applicative languages.
@@ -45,8 +49,8 @@ Fluent programs can process infinite streams of data without dedicated
 input and output primitives.
 
 In the Fluent core language, which is implemented by this project,
-minimality and nice algebraic properties take priority over programmer experience,
-hence programs are more verbose than in a typical concatenative language.
+nice algebraic properties take priority over user experience,
+hence programs are more verbose than in other concatenative languages.
 
 
 ## Syntax
@@ -75,7 +79,8 @@ When a combinator is applied to enough arguments, it produces a program,
 that is, a sequence of terms.
 The program is substituted for the combinator and its arguments.
 
-In the following table, `a` and `b` are arguments, `t` and `u` are terms.
+The following table lists the primitive combinators of the Fluent core language.
+In the signatures, `a` and `b` are arguments, `t` and `u` are general terms.
 
 | Operator with signature         | Description                             |
 |---------------------------------|-----------------------------------------|
@@ -100,45 +105,37 @@ In `nest (`, `(` is also a token.
 Some combinators are variadic, that is, they consume or produce an arbitrary
 number of terms.
 
-### Interpretation
+## Interpretation of programs
 
-Interpretation of source code is embedded into the language.
-This makes Fluent a *homoiconic* language, where the syntax
+Interpretation of source code is embedded into the core language.
+This makes Fluent a *homoiconic* language: the syntax
 of the language is a data structure that can be manipulated by the language itself.
 This property facilitates metaprogramming,
 and makes it easier to write programs that communicate via data structures.
 
 To parse and execute source code given as a string `s`, one has to execute the
 following program.
-This program is a *kernel*, that is, a program scheme built into the interpreter.
-It is necessary to have a kernel because the source code is a data stream,
-and the kernel is the only way to interpret it as a program.
+This program is a *kernel*, a program scheme built internally by the interpreter.
+This kernel makes it possible to interpret source code directly without
+an external parser.
 
 ~~~
 pol nest tokens s
 ~~~
 
-`tokens` converts the string into a stream of tokens.
-`nest` looks for lists in the stream of tokens and calls `coll` for each list.
+The `tokens` combinator converts the string into a stream of tokens.
+`nest` looks for opening parentheses in the stream of tokens and inserts
+`coll` in the program for each one.
 `coll` collects items into a list, stopping at the closing perenthesis.
 For example, `coll a b c )` is translated to `cons a cons b cons c ()`,
 where `()` is the empty list.
-`nest` and `coll` interplay to parse nested lists.
-`pol` assigns polarities to terms, as described below.
+`nest` and `coll` parse nested lists in interplay.
+`pol` assigns polarity to terms, as described below.
 Without `pol`, the source code would be interpreted as a data stream
 and not as a program.
 
 
-## Program algebra
-
-Some axioms hold for Fluent programs independently of the set of combinators.
-
-|> is an associative binary operator that concatenates programs.
-The identity element of |> is the empty program, which is denoted by `()` in this section.
-Fail is a zero element for |>.
-
-
-## Execution of a program
+### Polarity of terms
 
 The first step of evaluation is to assign polarity to terms.
 Polarity controls evaluation, and enables the definition of an evaluation strategy
@@ -147,15 +144,6 @@ The rules for assigning polarities are simple:
 
 - Operators are assigned negative polarity, and
 - every other term is assigned positive polarity.
-
-
-## Normal forms
-
-A program is a normal if there are no interactions in it.
-In other words, a negative term is never followed by a positive term,
-so that the shape of normal forms is *p1 p2 ... pn n1 n2 ... nm*,
-where *p1, ..., pn* are positive terms, *n1, ..., nm* are negative terms,
-*n >= 0* and *m >= 0*.
 
 
 ## Operational semantics
@@ -170,6 +158,20 @@ Laziness: output is prioritized over input.
 
 ## From execution to normalisation
 
+We reviewed the execution of Fluent programs.
+But runtime behaviour is not the only interesting aspect of programs.
+We may want to know how a program is reduced during execution.
+For example, the operator stack of a process cannot be directly observed,
+
+
+
+We say that a program is a normal form if it cannot be further reduced.
+More specifically, a Fluent program is a normal if there are no interactions in it.
+In other words, a negative term is never followed by a positive term,
+so that the shape of normal forms is *p1 p2 ... pn n1 n2 ... nm*,
+where *p1, ..., pn* are positive terms, *n1, ..., nm* are negative terms,
+*n >= 0* and *m >= 0*.
+
 StartNorm, EndNorm
 
 compare to normalisation by evaluation
@@ -177,9 +179,44 @@ compare to normalisation by evaluation
 call it "normalisation by execution" or NbEx to avoid confusion with NbE
 
 
-## Failure propagation
+## Program algebra
 
-Atomic failure vs. failure propagation.
+A number of equations hold for all Fluent programs.
+Some of these equations are consequences of the monoid structure of the language.
+Let's denote the monoid operation with `|>` and the identity element with `()`.
+The following equations hold for all programs `p`, `q`, and `r`:
+
+~~~
+Assoc:     `(p |> q) |> r = p |> (q |> r) = p |> q |> r`
+IdLeft:    `() |> p = p`
+IdRight:   `p |> () = p`
+~~~
+
+Fluent operators can also *fail*.
+For example, applying `uncons` to an empty list results in an error.
+If an operation fails, the whole program fails. Let's denote a failed program with `⊥`.
+Then the following equations hold for all programs `p`:
+
+~~~
+FailLeft:  `⊥ |> p = ⊥`
+FailRight: `p |> ⊥ = ⊥`
+~~~
+
+
+### Failure propagation
+
+Atomic failure vs. propagated failure
+
+
+### Mapping between domains
+
+Domains: list of characters, list of tokens, list of values, processes.
+
+TODO:
+show that:
+- all domains have monoid structure
+- the mappings are homomorphic
+- the domains are isomorphic
 
 
 ## Glossary
@@ -215,15 +252,16 @@ the operator is read last.
 
 ## References
 
-- [1] Wikipedia: Concatenative programming language
+- [1] Wikipedia: Concatenative programming language  
   https://en.wikipedia.org/wiki/Concatenative_programming_language
-- [2] Manfred von Thun: *Joy:* Forth's Functional Cousin
+- [2] Manfred von Thun: *Joy:* Forth's Functional Cousin  
   https://hypercubed.github.io/joy/html/forth-joy.html
-- [3] Algebraic effects ...
+- [3] An Introduction to Algebraic Effects and Handlers  
+  https://www.eff-lang.org/handlers-tutorial.pdf
 - [4] Jurij Mihelic, William Steingartner, Valerie Novitzka:
-  A denotational semantics of a concatenative/compositional programming language
+  A denotational semantics of a concatenative/compositional programming language  
   https://acta.uni-obuda.hu/Mihelic_Steingartner_Novitzka_111.pdf
-- [5] The Enchilada language (Term rewriting)
+- [5] The Enchilada language (Term rewriting)  
   https://web.archive.org/web/20231202225035fw_/http://enchiladacode.nl/reference.html#rewriting
-- [6] Brent Kirby: The theory of concatenative combinators
+- [6] Brent Kirby: The theory of concatenative combinators  
   http://tunes.org/~iepos/joy.html
