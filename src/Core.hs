@@ -37,7 +37,7 @@ data Tm
   | Drop            -- drop the following term
 
   | Tokens          -- Tokenize a source text
-  | Nest            -- Parse lists, passes anything else
+  | Lists           -- Parse lists, passes anything else
   | Coll            -- Cons together the following terms until a closing bracket
   | Pol             -- Assign polarity to a term
   | Pols            -- Assign polarity to a stream of terms
@@ -71,7 +71,7 @@ instance Show Tm where
   show Drop        = "drop"
 
   show Tokens      = "tokens"
-  show Nest        = "nest"
+  show Lists       = "lists"
   show Coll        = "coll"
   show Pol         = "pol"
   show Pols        = "pols"
@@ -116,8 +116,8 @@ interactTm n p = case (n, p) of
   (Tokens, Str s)      -> Just (tokens s)
   (Tokens, _)          -> Just [runtimeError "tokens: not a character: " p]
 
-  (Nest, Bracket '(')  -> Just [Neg Coll, Neg Nest]
-  (Nest, a)            -> Just [Pos a, Neg Nest]
+  (Lists, Bracket '(') -> Just [Neg Coll, Neg Lists]
+  (Lists, a)           -> Just [Pos a, Neg Lists]
 
   (Coll, Bracket ')')  -> Just [Pos Nil]
   (Coll, a)            -> Just [Neg Cons, Pos a, Neg Coll]
@@ -172,7 +172,7 @@ pol (Name "swap")      = Neg Swap
 pol (Name "drop")      = Neg Drop
 
 pol (Name "tokens")    = Neg Tokens
-pol (Name "nest")      = Neg Nest
+pol (Name "lists")     = Neg Lists
 pol (Name "coll")      = Neg Coll
 pol (Name "pol")       = Neg Pol
 pol (Name "pols")      = Neg Pols
