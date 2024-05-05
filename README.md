@@ -1,10 +1,15 @@
 # A Fluent demo interpreter written in Haskell
 
-This is a demo interpreter for the Fluent core language.
-It is not a reference implementation of the language, but a simplified version
+This is a demo interpreter for the Fluent language.
+It is not a reference implementation, but a simplified version
 that demonstrates the core ideas and the related programming techniques.
 Clear mapping of concepts into source code is a goal of this project,
 but runtime efficiency is not.
+
+This document contains an introduction to the Fluent core language, including
+its syntax, semantics, and algebraic properties.
+Finally I give a high level description of the interpreter.
+
 
 ## How to build and run
 
@@ -16,11 +21,12 @@ To run the interpreter, use the `stack run` command in the main directory of the
 
 ## Concatenative programming and Fluent
 
-Fluent is a pure concatenative programming language [1], [2]
+Fluent is a pure concatenative programming language [1] [2]
 with first-class continuations and algebraic effects [3].
 
 A concatenative (or compositional) language is a language
-whose syntax and semantics form the algebraic structure of a monoid.
+whose syntax and semantics form the algebraic structure of a
+[monoid](https://en.wikipedia.org/wiki/Monoid).
 At the syntax level, the monoid operation is concatenation of terms.
 The standard semantics interprets the terms as functions that take and return
 a stack of values. The monoid operation is function composition [4].
@@ -93,37 +99,39 @@ This informal semantics is sufficient for understanding the interpretation
 of Fluent programs.
 
 The following table lists all primitive combinators.
-In the signatures, `p` and `q` are positive terms, `n` and `o` are negative terms, 
+In the signatures, `p` and `q` are positive terms,
 `t` and `u` are general terms, and `s` and `s'` are strings.
 
 ~~~
-cons p (...) -> (p ...)       Prepend a term to a list.
-uncons (p ...) -> p (...)     Split a list into its head and tail.
+dup p    => p p               Duplicate a term.
+swap p q => q `               Swap two terms.
+drop p   =>                   Drop a term.
 
-dup p -> p p                  Duplicate a term.
-swap p q -> q `               Swap two terms.
-drop p ->                     Drop a term.
+cons p (...)   => (p ...)     Prepend a term to a list.
+uncons (p ...) => p (...)     Split a list into its head and tail.
 
-tokens "" ->                  Finish tokenizing a string.
-tokens s -> p tokens s'       Split a token from a string.
+tokens "" =>                  Finish tokenizing a string.
+tokens s  => p tokens s'      Split a token from a string.
 
-lists ( -> coll lists         Start parsing a list.
-lists p -> p lists            Pass anything else.
+lists ( => coll lists         Start parsing a list.
+lists p => p lists            Pass anything else.
 
-coll ) -> ()                  End parsing a list.
-coll p -> cons p coll         Collect all other terms into a list.
+coll ) => ()                  End parsing a list.
+coll p => cons p coll         Collect all other terms into a list.
 
-pol p -> t                    Assigns polarity to a term.
-pols p -> pol p pols          Assigns polarity to a stream of terms.
+pol p  => t                   Assign polarity to a term.
+pols p => pol p pols          Assign polarity to a stream of terms.
 
-fix p -> apply p (fix p)      Fixed-point combinator.
-apply (p q...) -> t u ...     Convert a list to a sequence of terms.
+fix p => apply p (fix p)      Fixed-point combinator.
+
+apply (p q...) => t u ...     Convert a list to a sequence of polarised terms.
+apply a        => pol a       Assign polarity to a token.
 ~~~
 
-The above combinator base is not necessarily minimal.
+The combinator base is not minimal.
 Some combinators are variadic, that is, they consume or produce an arbitrary
 number of terms.
-Note that in `lists (` and in `coll ) -> ()`, `)` is a token,
+Note that in `lists (` and in `coll ) => ()`, `(` and `)` are tokens,
 while `()` is the empty list.
 
 ### Built-in evaluation
@@ -152,23 +160,133 @@ The `tokens` combinator converts the string into a stream of tokens.
 For example, `coll a b c )` is translated to `cons a cons b cons c ()`,
 where `()` is the empty list.
 `lists` and `coll` parse nested lists in interplay.
-`pols` assigns polarity to terms, as described below.
-Without `pols`, the source code would be interpreted as a data stream
-and not as a program.
+
+`lists tokens` together act as a parser that converts a string into
+abstract syntax.
+The final step of evaluation is to assign polarity to terms.
+It is done by the `pols` combinator, which converts abstract syntax into
+an executable program.
+
+
+## Rewrite semantics in a nutshell
+
+Until now we relied on an informal semantics of Fluent programs.
+Essentially, it is a rewrite semantics together with the assumption that
+reductions can be done in any order, i.e. the language is confluent.
+In this section, I will make this semantics more formal.
+
+As a first step, I introduce a few concepts that make the structure of
+the language more regular and more modular.
+They will simplify the definition of the semantics and make it more general.
 
 
 ### Polarity of terms
 
-The first step of evaluation is to assign polarity to terms.
-Polarity controls evaluation, and enables the definition of an evaluation strategy
-that is independent of the meaning of the terms.
-The rules for assigning polarities are simple:
+It is a unique feature of Fluent that terms are polarised.
+Polarity enables the definition of an evaluation strategy
+independently from the concrete combinators.
 
-- Operators are assigned negative polarity, and
-- every other term is assigned positive polarity.
+As it was mentioned before, the terms of concatenative languages are informally
+divided into two categories, which are called combinators and arguments.
+In Fluent these categories are formalized as negative and positive terms.
+In concatenative combinatory logic (CCL) [6] [7], the distinction is also
+made formal as *combinators* and *quotations*.
+Combinators always act on quotations and not on other combinators.
+This way, arguments are syntactically separated from combinators.
+This seems to be a prerequisite for confluence.
+
+In Fluent, the only negative terms are combinators. To illustrate the concept
+of polarity, let's consider the following examples, where the positive terms
+are marked with `+` and the negative terms with `-`.
+
+~~~
+cons a cons b cons c ()
+---- + ---- + ---- + ++
+
+swap a b
+---- + +
+
+dup (cons a cons b ())
+--- ++++++++++++++++++
+~~~
+
+Note that in the last example the list is a single positive term.
+There is no polarisation inside lists, only at the top level.
 
 
-## From execution to normalisation
+### Encoding in CCL
+
+Positive terms can be encoded in CCL as follows:
+
+- Tokens are enclosed into a quotation.
+- Lists are replaced by the encodings of the list elements enclosed into a quotation.
+- Top level lists are enclosed into an extra quotation.
+
+I give a few examples to illustrate the encoding of negative terms.
+For those who are familiar with CCL, this encoding may seem
+unusual. However consider that the encoding must be reversible.
+
+~~~
+dup [a] => [a] [a]
+swap [a] [b] => [b] [a]
+drop [a] =>
+
+cons [a] [[b]] => [[a] [b]]
+~~~
+
+
+### Partial application
+
+Partial application is the application of a function to fewer arguments
+than it expects. While in concatenative languages there is no application
+operator, combinators can be seen as functions that take arguments.
+Let's denote a partial application by `<c a b ...>` where `c` is a combinator
+and `a b ...` are arguments.
+Let's redefine some combinators using partial application.
+
+~~~
+cons a     => <cons a>
+<cons a> b => (a b)
+
+swap a     => <swap a>
+<swap a> b => b a
+~~~
+
+### Interaction function
+
+
+
+### From operations to interactions
+
+
+
+
+
+
+
+
+
+### Confluence(?)
+
+I don't have a formal proof of confluence, but here are some arguments
+that support this assumption.
+
+Even if the order of reductions does not matter, some orderings are more
+efficient than others.
+
+
+## Operational semantics
+
+
+Transition rules
+
+
+### Programs as processes
+
+Laziness: output is prioritized over input.
+
+
+### From execution to normalisation
 
 We reviewed the execution of Fluent programs.
 But runtime behaviour is not the only interesting aspect of programs.
@@ -191,14 +309,9 @@ compare to normalisation by evaluation
 call it "normalisation by execution" or NbEx to avoid confusion with NbE
 
 
-## Operational semantics
-
-Transition rules
+## Algebraic effects
 
 
-### Programs as processes
-
-Laziness: output is prioritized over input.
 
 
 ## Program algebra
@@ -309,3 +422,5 @@ the operator is read last.
   https://web.archive.org/web/20231202225035fw_/http://enchiladacode.nl/reference.html#rewriting
 - [6] Brent Kirby: The theory of concatenative combinators  
   http://tunes.org/~iepos/joy.html
+- [7] Remo Dentato: The role of quotes in Concatenative Combinatory Logic
+  https://hackmd.io/@qeHlwm2zQ62-hoUHOp_E5w/r11Zu4a0t
