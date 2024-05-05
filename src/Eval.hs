@@ -5,7 +5,7 @@
 
 module Eval where
 
-import           Data.Monoid()
+import           Data.Monoid ()
 
 
 ------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ type Interact t = t -> t -> Maybe (Prog t)
 data Proc t
   = PInter t t (Cont t)   -- unhandled interaction (user-defined effect)
   | POutput t (Cont t)    -- produce output
-  | PInput (Cont t)       -- require input (no more output can be produced)
+  | PInput (Cont t)       -- require input (when no more output can be produced)
   | PFinish               -- inactive process
   | PError t              -- failed process
 
@@ -63,10 +63,6 @@ continue stk input = case (stk, input) of
   -- propagate failure
   (_, Error e:_)       -> PError e
 
--- Create an empty continuation. Convert a program to a process.
-proc :: Cont t
-proc = continue []
-
 -- Convert an interaction function to an effect handler.
 interactHandler :: Interact t -> Handler t
 interactHandler i (PInter n p k) = case i n p of
@@ -76,6 +72,10 @@ interactHandler i (POutput t k) = POutput t (interactHandler i . k)
 interactHandler i (PInput k) = PInput (interactHandler i . k)
 interactHandler _ PFinish = PFinish
 interactHandler _ (PError e) = PError e
+
+-- Create an empty continuation. Convert a program to a process.
+proc :: Cont t
+proc = continue []
 
 -- Composition of processes.
 -- The second process is prioritized over the first one to increase laziness.
