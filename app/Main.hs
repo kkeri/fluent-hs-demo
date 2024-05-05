@@ -33,7 +33,7 @@ defHandler env pr = case pr of
 -- Evaluate a string.
 -- eval (s ++ t) = (eval s) ++ (eval t)
 eval :: String -> Prog Tm
-eval s = [Neg Pol, Neg Nest, Neg Tokens, Pos $ Str s]
+eval s = [Neg Pols, Neg Nest, Neg Tokens, Pos $ Str s]
 
 execProc :: Proc Tm -> IO ()
 execProc pr = case pr of
