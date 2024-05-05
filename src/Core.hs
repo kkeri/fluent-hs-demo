@@ -36,10 +36,11 @@ data Tm
   | Swap            -- swap the two following terms
   | Drop            -- drop the following term
 
-  | Tokens          -- Tokenizing a source text
+  | Tokens          -- Tokenize a source text
   | Nest            -- Parse lists, passes anything else
-  | Coll            -- Conses together the following terms until a closing bracket
-  | Pol             -- Assigns polarity to a stream of terms
+  | Coll            -- Cons together the following terms until a closing bracket
+  | Pol             -- Assign polarity to a term
+  | Pols            -- Assign polarity to a stream of terms
 
   | Fix             -- Fixed-point combinator
   | Apply           -- Flatten and interpret a list
@@ -73,6 +74,7 @@ instance Show Tm where
   show Nest        = "nest"
   show Coll        = "coll"
   show Pol         = "pol"
+  show Pols        = "pols"
 
   show StartNorm   = "startNorm"
   show EndNorm     = "endNorm"
@@ -120,7 +122,8 @@ interactTm n p = case (n, p) of
   (Coll, Bracket ')')  -> Just [Pos Nil]
   (Coll, a)            -> Just [Neg Cons, Pos a, Neg Coll]
 
-  (Pol, a)             -> Just [pol a, Neg Pol]
+  (Pol, a)             -> Just [pol a]
+  (Pols, a)            -> Just [Neg Pol, Pos a, Neg Pols]
 
   (Fix, f)             -> Just [Neg Apply, Pos f, Pos $ Pair Fix f]
   (Apply, a)           -> Just (apply a)
@@ -171,7 +174,7 @@ pol (Name "drop")      = Neg Drop
 pol (Name "tokens")    = Neg Tokens
 pol (Name "nest")      = Neg Nest
 pol (Name "coll")      = Neg Coll
-pol (Name "pol")       = Neg Pol
+pol (Name "pols")      = Neg Pols
 
 pol (Name "fix")       = Neg Fix
 pol (Name "apply")     = Neg Apply
