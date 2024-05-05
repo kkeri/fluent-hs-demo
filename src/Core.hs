@@ -174,6 +174,7 @@ pol (Name "drop")      = Neg Drop
 pol (Name "tokens")    = Neg Tokens
 pol (Name "nest")      = Neg Nest
 pol (Name "coll")      = Neg Coll
+pol (Name "pol")       = Neg Pol
 pol (Name "pols")      = Neg Pols
 
 pol (Name "fix")       = Neg Fix
