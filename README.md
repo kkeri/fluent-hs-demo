@@ -1,14 +1,17 @@
 # A Fluent demo interpreter written in Haskell
 
-This is a demo interpreter for the Fluent language.
-It is not a reference implementation, but a simplified version
-that demonstrates the core ideas and the related programming techniques.
-Clear mapping of concepts into source code is a goal of this project,
-but runtime efficiency is not.
+Fluent is a planned functional-logic programming language built on a
+concatenative core language. Ideally, all the high level features of
+Fluent will be implemented as libraries in the core language.
 
-This document contains an introduction to the Fluent core language, including
-its syntax, semantics, and algebraic properties.
-Finally I give a high level description of the interpreter.
+This project implements a demo interpreter for the core language only.
+It is not a reference implementation, but a simplified version
+that demonstrates the ideas and the related programming techniques.
+
+Everyone is encouraged to experiment with the language and to write
+their own interpreter.
+This document provides an introduction to the Fluent core language,
+including its syntax, semantics, and algebraic properties.
 
 
 ## How to build and run
@@ -34,13 +37,15 @@ But this is not the only possible semantics. Some concatenative languages are
 defined using a rewrite semantics [5], and in the concatenative community
 there seems to be an agreement that such rewriting systems are confluent.
 
-The terms of a concatenative language are informally divided into two
-categories, which are called combinators and arguments, 
-or operators and operands. In the Fluent language they are called
-negative and positive terms, respectively.
-Operands "push themselves" onto the stack, while operators
-pop values from the stack and push new values in their place.
+The terms of concatenative languages are divided into two
+categories, which are variously called *concatenative combinators* and
+*arguments*, operators and operands, or other names, given by language designers.
+In Fluent they are called *negative* and *positive terms*, respectively.
+In a stack-based language, arguments "push themselves" onto the stack,
+while combinators pop values from the stack and push new values
+in their place.
 Most concatenative languages use postfix notation.
+
 Concatenative languages are sometimes contrasted with applicative languages.
 Applicative languages are based on  the lambda calculus,
 while concatenative languages are based on concatenative combinators.
@@ -50,12 +55,12 @@ Fluent differs from a typical concatenative language in a couple of ways.
 The syntax uses prefix notation.
 The semantics is a small-step operational semantics based on an abstract
 machine.
-The abstract machine has a stack, but it is a stack of operators.
+The abstract machine has a stack, but it is a stack of negative terms.
 In this respect, Fluent is dual to stack-based languages.
 Fluent programs can process infinite streams of data without dedicated
 input and output primitives.
 
-In the Fluent core language, which is implemented by this project,
+In the Fluent core language
 nice algebraic properties take priority over user experience,
 hence programs are more verbose than in other concatenative languages.
 The only syntax sugar is the use of parentheses for lists.
@@ -99,7 +104,7 @@ This informal semantics is sufficient for understanding the interpretation
 of Fluent programs.
 
 The following table lists all primitive combinators.
-In the signatures, `p` and `q` are positive terms,
+`p` and `q` are positive terms,
 `t` and `u` are general terms, and `s` and `s'` are strings.
 
 ~~~
@@ -136,9 +141,8 @@ while `()` is the empty list.
 
 ### Built-in evaluation
 
-Fluent is an *interpreted* language.
-The source code is executed directly, without a separate compilation step.
-In other words, preprocessing of source code is interleaved with execution.
+Fluent is an *interpreted* language, where preprocessing of source code is
+interleaved with execution.
 Some interpreted languages expose this feature to the user via an `eval` function.
 Fluent takes this idea a step further by exposing the parser to the user.
 This makes Fluent a *homoiconic* language: the syntax
@@ -154,11 +158,10 @@ pols lists tokens s
 ~~~
 
 The `tokens` combinator converts the string into a stream of tokens.
-`lists` looks for opening parentheses in the stream of tokens and inserts
-`coll` in the program for each one.
+`lists` looks for opening parentheses in the stream of tokens and replaces
+them with the `coll` combinator.
 `coll` collects items into a list, stopping at the closing perenthesis.
-For example, `coll a b c )` is translated to `cons a cons b cons c ()`,
-where `()` is the empty list.
+For example, `coll a b c )` is translated to `cons a cons b cons c ()`.
 `lists` and `coll` parse nested lists in interplay.
 
 `lists tokens` together act as a parser that converts a string into
@@ -168,15 +171,10 @@ It is done by the `pols` combinator, which converts abstract syntax into
 an executable program.
 
 
-## Rewrite semantics in a nutshell
+## Towards semantics
 
-Until now we relied on an informal semantics of Fluent programs.
-Essentially, it is a rewrite semantics together with the assumption that
-reductions can be done in any order, i.e. the language is confluent.
-In this section, I will make this semantics more formal.
-
-As a first step, I introduce a few concepts that make the structure of
-the language more regular and more modular.
+In this section I introduce a few concepts that make the structure of
+the language more regular and modular.
 They will simplify the definition of the semantics and make it more general.
 
 
@@ -210,7 +208,7 @@ dup (cons a cons b ())
 --- ++++++++++++++++++
 ~~~
 
-Note that in the last example the list is a single positive term.
+Note that a list is a single positive term.
 There is no polarisation inside lists, only at the top level.
 
 
@@ -242,6 +240,7 @@ than it expects. While in concatenative languages there is no application
 operator, combinators can be seen as functions that take arguments.
 Let's denote a partial application by `<c a b ...>` where `c` is a combinator
 and `a b ...` are arguments.
+A partial application is a negative term.
 Let's redefine some combinators using partial application.
 
 ~~~
@@ -252,11 +251,16 @@ swap a     => <swap a>
 <swap a> b => b a
 ~~~
 
-### Interaction function
-
-
-
 ### From operations to interactions
+
+Partial application effectively turns n-ary combinators into
+unary combinators. 
+This takes us to the most important concept in Fluent: *interactions*.
+An interaction is a negative term followed by a positive term.
+As all negative terms are combinators, and all combinators are unary,
+interactions can always be reduced.
+
+
 
 
 
@@ -297,7 +301,7 @@ For example, the operator stack of a process cannot be directly observed,
 
 We say that a program is a normal form if it cannot be further reduced.
 More specifically, a Fluent program is a normal if there are no interactions in it.
-In other words, a negative term is never followed by a positive term,
+In a normal form, a negative term is never followed by a positive term,
 so that the shape of normal forms is *p1 p2 ... pn n1 n2 ... nm*,
 where *p1, ..., pn* are positive terms, *n1, ..., nm* are negative terms,
 *n >= 0* and *m >= 0*.
@@ -367,7 +371,12 @@ I call this approach *propagated failure*.
 
 ### Mapping between domains
 
-Domains: list of characters, list of tokens, list of values, processes.
+Domains:
+
+- list of characters
+- list of tokens
+- list of (polarised) terms
+- processes
 
 TODO:
 show that:
