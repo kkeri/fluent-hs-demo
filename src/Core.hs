@@ -38,7 +38,8 @@ data Tm
 
   | Tokens          -- Tokenize a source text
   | Lists           -- Parse lists, passes anything else
-  | Coll            -- Cons together the following terms until a closing bracket
+  | Nest            -- Cons together the following terms until a closing bracket
+  | Flat            -- The inverse of Nest
   | Pol             -- Assign polarity to a term
   | Pols            -- Assign polarity to a stream of terms
 
@@ -72,7 +73,8 @@ instance Show Tm where
 
   show Tokens      = "tokens"
   show Lists       = "lists"
-  show Coll        = "coll"
+  show Nest        = "nest"
+  show Flat        = "flat"
   show Pol         = "pol"
   show Pols        = "pols"
 
@@ -116,11 +118,15 @@ interactTm n p = case (n, p) of
   (Tokens, Str s)      -> Just (tokens s)
   (Tokens, _)          -> Just [runtimeError "tokens: not a character: " p]
 
-  (Lists, Bracket '(') -> Just [Neg Coll, Neg Lists]
+  (Lists, Bracket '(') -> Just [Neg Nest, Neg Lists]
   (Lists, a)           -> Just [Pos a, Neg Lists]
 
-  (Coll, Bracket ')')  -> Just [Pos Nil]
-  (Coll, a)            -> Just [Neg Cons, Pos a, Neg Coll]
+  (Nest, Bracket ')')  -> Just [Pos Nil]
+  (Nest, a)            -> Just [Neg Cons, Pos a, Neg Nest]
+
+  (Flat, Nil)          -> Just [Pos $ Bracket ')']
+  (Flat, Pair a b)     -> Just [Pos a, Neg Flat, Pos b]
+  (Flat, a)            -> Just [runtimeError "flat: not a pair: " a]
 
   (Pol, a)             -> Just [pol a]
   (Pols, a)            -> Just [Neg Pol, Pos a, Neg Pols]
@@ -131,7 +137,7 @@ interactTm n p = case (n, p) of
   (Cond, a)            -> Just [Neg $ Pair Cond a]
   (Pair Cond (Pair a _), True) -> Just [Pos a]
   (Pair Cond (Pair _ b), _)    -> Just [Pos b]
-  (Pair Cond a, b)     -> Just [Pos $ Pair Cond $ Pair a b]
+  (Pair Cond a, b)     -> Just [Neg $ Pair Cond $ Pair a b]
 
 
   -- undefined interactions
@@ -173,7 +179,8 @@ pol (Name "drop")      = Neg Drop
 
 pol (Name "tokens")    = Neg Tokens
 pol (Name "lists")     = Neg Lists
-pol (Name "coll")      = Neg Coll
+pol (Name "nest")      = Neg Nest
+pol (Name "flat")      = Neg Flat
 pol (Name "pol")       = Neg Pol
 pol (Name "pols")      = Neg Pols
 
@@ -183,10 +190,14 @@ pol (Name "apply")     = Neg Apply
 pol (Name "startNorm") = Neg StartNorm
 pol (Name "endNorm")   = Pos EndNorm
 
+pol (Name "true")      = Pos True
+pol (Name "false")     = Pos False
+pol (Name "cond")      = Neg Cond
+
 -- Everything else is a positive value
 pol a                  = Pos a
 
--- Flatten a partially applied combinator.
+-- Flatten a partial application.
 flatPA :: Tm -> Prog Tm
 flatPA (Pair a b) = Pos a : flatPA b
 flatPA Nil        = []

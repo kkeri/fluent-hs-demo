@@ -118,11 +118,14 @@ uncons (p ...) => p (...)     Split a list into its head and tail.
 tokens "" =>                  Finish tokenizing a string.
 tokens s  => p tokens s'      Split a token from a string.
 
-lists ( => coll lists         Start parsing a list.
+lists ( => nest lists         Start parsing a list.
 lists p => p lists            Pass anything else.
 
-coll ) => ()                  End parsing a list.
-coll p => cons p coll         Collect all other terms into a list.
+nest ) => ()                  Finish parsing a list.
+nest p => cons p nest         Prepend all other terms to a list.
+
+flat () => )                  Finish flattening a list.
+flat (p ...) => p flat (...)  Flatten a list.
 
 pol p  => t                   Assign polarity to a term.
 pols p => pol p pols          Assign polarity to a stream of terms.
@@ -136,8 +139,9 @@ apply a        => pol a       Assign polarity to a token.
 The combinator base is not minimal.
 Some combinators are variadic, that is, they consume or produce an arbitrary
 number of terms.
-Note that in `lists (` and in `coll ) => ()`, `(` and `)` are tokens,
+Note that in `lists (` and in `nest ) => ()`, `(` and `)` are tokens,
 while `()` is the empty list.
+
 
 ### Built-in evaluation
 
@@ -159,10 +163,10 @@ pols lists tokens s
 
 The `tokens` combinator converts the string into a stream of tokens.
 `lists` looks for opening parentheses in the stream of tokens and replaces
-them with the `coll` combinator.
-`coll` collects items into a list, stopping at the closing perenthesis.
-For example, `coll a b c )` is translated to `cons a cons b cons c ()`.
-`lists` and `coll` parse nested lists in interplay.
+them with the `nest` combinator.
+`nest` collects items into a list, stopping at the closing perenthesis.
+For example, `nest a b c )` is translated to `cons a cons b cons c ()`.
+`lists` and `nest` parse nested lists in interplay.
 
 `lists tokens` together act as a parser that converts a string into
 abstract syntax.
