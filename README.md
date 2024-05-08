@@ -1,6 +1,6 @@
 # A Fluent demo interpreter written in Haskell
 
-Fluent is a planned functional-logic programming language built on a
+Fluent is a planned functional logic programming language built on a
 concatenative core language. Ideally, all the high level features of
 Fluent will be implemented as libraries in the core language.
 
@@ -55,7 +55,7 @@ Fluent differs from a typical concatenative language in a couple of ways.
 The syntax uses prefix notation.
 The semantics is a small-step operational semantics based on an abstract
 machine.
-The abstract machine has a stack, but it is a stack of negative terms.
+The abstract machine has a stack, but it is a stack of combinators.
 In this respect, Fluent is dual to stack-based languages.
 Fluent programs can process infinite streams of data without dedicated
 input and output primitives.
@@ -193,9 +193,9 @@ Combinators always act on quotations and not on other combinators.
 This way, arguments are syntactically separated from combinators.
 This seems to be a prerequisite for confluence.
 
-In Fluent, the only negative terms are combinators. To illustrate the concept
-of polarity, let's consider the following examples, where the positive terms
-are marked with `+` and the negative terms with `-`.
+In Fluent, the only negative terms are combinators. 
+In the following example the positive terms are marked with `+`
+and the negative terms with `-`.
 
 ~~~
 cons a cons b cons c ()
@@ -236,8 +236,8 @@ cons [a] [[b]] => [[a] [b]]
 ### Partial application
 
 Partial application is the application of a function to fewer arguments
-than it expects. While in concatenative languages there is no application
-operator, combinators can be seen as functions that take arguments.
+than it expects. In concatenative languages there is no application
+operator, but combinators can be seen as functions that take arguments.
 Let's denote a partial application by `<c a b ...>` where `c` is a combinator
 and `a b ...` are arguments.
 A partial application is a negative term.
@@ -257,29 +257,23 @@ Partial application effectively turns n-ary combinators into
 unary combinators. 
 This takes us to the most important concept in Fluent: *interactions*.
 An interaction is a negative term followed by a positive term.
-As all negative terms are combinators, and all combinators are unary,
-interactions can always be reduced.
+It may occur that a combinator is followed by too few arguments,
+but interactions can always be reduced.
+For an efficient reduction strategy, it is enough to look for interactions
+in a program.
 
+The reduction rules for interactions can be extracted into an
+*interaction function* that takes a negative term and a positive term
+and returns a program.
 
-
-
-
-
-
-
-
-
-
-### Confluence(?)
-
-I don't have a formal proof of confluence, but here are some arguments
-that support this assumption.
-
-Even if the order of reductions does not matter, some orderings are more
-efficient than others.
+~~~
+interact : Term -> Term -> Program
+~~~
 
 
 ## Operational semantics
+
+Now we have all the ingredients to define a proper semantics for Fluent.
 
 
 Transition rules
