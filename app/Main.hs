@@ -1,55 +1,26 @@
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main (main) where
 
-import           System.IO
+import           Prelude     hiding (interact)
+import           System.Exit
 
 import           Core
 import           Eval
+import           Handler
 
-
-------------------------------------------------------------------------------
--- Effect handlers
-------------------------------------------------------------------------------
-
-type Env = [(String, Tm)]
-
--- Add user defined combinators to the language.
-defHandler :: Env -> Handler Tm
-defHandler env pr = case pr of
-  PInter n p k -> case n of
-    -- partial application of `def`
-    Name "def" -> defHandler env . k $ [Neg $ Pair (Name "def") p]
-    -- define a combinator
-    Pair (Name "def") (Name m) -> defHandler ((m, p):env) . k $ []
-    -- apply a combinator
-    Name m -> case lookup m env of
-      Just v  -> defHandler env . k $ [Neg Apply, Pos v, Pos p]
-      Nothing -> PInter n p (defHandler env . k)
-    _ -> PInter n p (defHandler env . k)
-  POutput t k -> POutput t (defHandler env . k)
-  PInput k -> PInput (defHandler env . k)
-  PFinish -> PFinish
-  PError e -> PError e
-
--- Evaluate a string.
--- eval (s ++ t) = (eval s) ++ (eval t)
-eval :: String -> Prog Tm
-eval s = [Neg Pols, Neg Lists, Neg Tokens, Pos $ Str s]
-
-execProc :: Proc Tm -> IO ()
-execProc pr = case pr of
-  PInter (Name "return") p _ -> do putStr "return "; print p
-  PInter n p _ -> print ("error: unhandled interaction: " ++ show n ++ " " ++ show p)
-  POutput t k -> do
-    putStr (show t)
-    putStr " "
-    hFlush stdout
-    execProc (k [])
-  PInput _ -> return ()
-  PFinish -> return ()
-  PError e -> error (show e)
+-- Build a kernel that interpreters a string.
+-- kern (s ++ t) = (kern s) ++ (kern t)
+kern :: String -> Prog Neg Pos
+kern s = [ Neg Vals
+           , Neg $ User "defs"
+             , Neg Lists
+             , Neg Tokens, Pos $ Token (Str s)
+             , Pos End
+           , Pos End
+         ]
 
 main :: IO ()
 main = do
   s <- getContents
-  let p = interactHandler interactTm . proc $ eval s
-  execProc p
+  xc <- execIO . interactHandler interact . defHandler [] . cont $ kern s
+  exitWith xc
