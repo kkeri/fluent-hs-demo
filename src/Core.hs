@@ -21,11 +21,11 @@ data Token
 
 data Neg
   -- Predefined combinators
-  = Cons                -- Prepend a term to a list
-  | Uncons              -- Split a list into its head and tail
-  | Dup                 -- Duplicate a term
+  = Dup                 -- Duplicate a term
   | Swap                -- Swap two terms
   | Drop                -- Drop a term
+  | Cons                -- Prepend a term to a list
+  | Uncons              -- Split a list into its head and tail
   | Tokens              -- Tokenize a string
   | List                -- Parse a list
   | Lists               -- Parse lists, passes anything else
@@ -111,18 +111,18 @@ interact n p = case (n, p) of
   (NDump, a)                   -> Just [Pos a, Neg NDump]
   (a, PDump)                   -> Just (Pos PDump : map Pos (quote a))
 
-  (Cons, a)                    -> Just [Neg $ Part Cons [a]]
-  (Part Cons [a], b)           -> Just [Pos $ Pair a b]
-
-  (Uncons, Pair a b)           -> Just [Pos a, Pos b]
-  (Uncons, _)                  -> Just [runtimeError "uncons: not a list: " p]
-
   (Dup, a)                     -> Just [Pos a, Pos a]
 
   (Drop, _)                    -> Just []
 
   (Swap, a)                    -> Just [Neg $ Part Swap [a]]
   (Part Swap [a], b)           -> Just [Pos b, Pos a]
+
+  (Cons, a)                    -> Just [Neg $ Part Cons [a]]
+  (Part Cons [a], b)           -> Just [Pos $ Pair a b]
+
+  (Uncons, Pair a b)           -> Just [Pos a, Pos b]
+  (Uncons, _)                  -> Just [runtimeError "uncons: not a list: " p]
 
   (Tokens, Token (Str s))      -> Just (tokens s)
   (Tokens, _)                  -> Just [runtimeError "tokens: not a string: " p]
@@ -198,11 +198,11 @@ eval (Token (Symbol n)) = Pos (evalSymbol n)
 eval a                  = Pos a
 
 evalName :: String -> Neg
-evalName "cons"   = Cons
-evalName "uncons" = Uncons
 evalName "dup"    = Dup
 evalName "swap"   = Swap
 evalName "drop"   = Drop
+evalName "cons"   = Cons
+evalName "uncons" = Uncons
 evalName "tokens" = Tokens
 evalName "list"   = List
 evalName "lists"  = Lists
@@ -227,11 +227,11 @@ evalSymbol s       = Token (Symbol s)
 -- Quote a negative value.
 quote :: Neg -> [Pos]
 -- predefined combinators
-quote Cons        = [Token $ Name "cons"]
-quote Uncons      = [Token $ Name "uncons"]
 quote Dup         = [Token $ Name "dup"]
 quote Swap        = [Token $ Name "swap"]
 quote Drop        = [Token $ Name "drop"]
+quote Cons        = [Token $ Name "cons"]
+quote Uncons      = [Token $ Name "uncons"]
 quote Tokens      = [Token $ Name "tokens"]
 quote List        = [Token $ Name "list"]
 quote Lists       = [Token $ Name "lists"]
