@@ -1,6 +1,8 @@
 # Peano arithmetics
 
+
 #### Helpers ####
+
 
 # Apply a list to the first argument.
 def apply (vals flat)
@@ -16,13 +18,9 @@ def newline (print "\n")
 def println (print dip (newline))
 def section (newline print dip (print ": "))
 
-section "dip"
-dip (A) B ;
-dip (X) S T ;
-dip (dup) S T ;
-
 
 #### Flat Nats ####
+
 
 # Peano numbers are natural numbers (Nats) represented as a counting up from zero.
 # In Fluent, Nats can be encoded a couple of ways.
@@ -54,8 +52,8 @@ addNat Z Z ;
 addNat S S Z S Z ;
 
 
-
 #### Nested Nats ####
+
 
 # Nested Nats are encoded as nested pairs.
 # For example, 0 is encoded as (Z), 2 is encoded as (S S Z).
@@ -85,8 +83,8 @@ match () match Z uncons match S uncons (S Z) ;
 
 # Convert a nested Nat to a flat Nat and fail for anything else.
 def flatNat
-    (cond (dip (flatNat))
-          (cond (dip (drop))  # drop Nil
+    (cond (S flatNat drop)
+          (cond (Z drop drop)  # drop Nil too
                 (error)
                 eqtok Z dup)
           eqtok S dup uncons)
@@ -98,9 +96,33 @@ flatNat (Z) ;
 flatNat (S Z) ;
 flatNat (S S Z) ;
 
-# Add two nested Nats.
+# Pass a nested Nat from right to left unaltered, fail for anything else.
+def passNNat
+    (cond (cons S passNNat drop)
+          (cond ((Z) drop drop)
+                (error)
+                eqtok Z dup)
+          eqtok S dup uncons)
 
+section "passNNat"
+passNNat (Z) ;
+passNNat (S Z) ;
+passNNat (S S Z) ;
 
+# Add two nested Nats and fail for anything else.
+def addNNat
+    (cond (cons S addNNat drop)
+          (cond (passNNat drop drop)
+                (error)
+                eqtok Z dup)
+          eqtok S dup uncons)
+
+section "addNNat"
+
+addNNat (Z) (Z) ;
+addNNat (Z) (S Z) ;
+addNNat (S Z) (Z) ;
+addNNat (S Z) (S Z) ;
 
 
 newline
