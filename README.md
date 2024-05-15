@@ -110,35 +110,36 @@ The following table lists all primitive combinators.
 `t` and `u` are general terms, and `s` and `s'` are strings.
 
 ~~~
-cons p (...)   => (p ...)     Prepend a term to a list.
-uncons (p ...) => p (...)     Split a list into its head and tail.
+dup p    => p p                 Duplicate a term.
+swap p q => q `                 Swap two terms.
+drop p   =>                     Drop a term.
 
-dup p    => p p               Duplicate a term.
-swap p q => q `               Swap two terms.
-drop p   =>                   Drop a term.
+cons p (...)   => (p ...)       Prepend a term to a list.
+uncons (p ...) => p (...)       Split a list into its head and tail.
 
-tokens "" => End              Finish tokenizing a string.
-tokens s  => p tokens s'      Split a token from a string.
+tokens "" => End                Finish tokenizing a string.
+tokens s  => p tokens s'        Split a token from a string.
 
-list ) => ()                  Finish parsing a list.
-list p => cons p list         Prepend all other terms to a list.
+list ) => ()                    Finish parsing a list.
+list p => cons p list           Prepend all other terms to a list.
 
-lists ( => list lists         Start parsing a list.
-lists p => p lists            Pass anything else.
+lists End =>                    Finish parsing lists.
+lists ( => list lists           Start parsing a list.
+lists p => p lists              Pass anything else.
 
-nest End => ()                Finish nesting a flat list.
-nest p   => cons p nest       Nest a term.
+nest End => ()                  Finish nesting a flat list.
+nest p   => cons p nest         Nest a term.
 
-flat () => End                Finish flattening a list.
-flat (p ...) => p flat (...)  Flatten a list.
+flat () => End                  Finish flattening a list.
+flat (p ...) => p flat (...)    Flatten a list.
 
-eval p => t                   Evaluate a term.
-vals p => eval p vals         Evaluate a flat list of terms.
+eval p => t                     Evaluate a term.
+vals p => eval p vals           Evaluate a flat list of terms.
 
-fix p => vals flat p (fix p)  Fixed-point combinator.
+fix p => vals flat p (fix p)    Fixed-point combinator.
 ~~~
 
-The combinator base is not minimal.
+This combinator base is not minimal.
 Some combinators are variadic, that is, they consume or produce an arbitrary
 number of terms.
 Note that in `list ) => ()` and in `lists (`, `(` and `)` are tokens,
@@ -184,8 +185,8 @@ Evaluation stops at the second `End` terminator.
 ## Steps towards semantics
 
 In this section I introduce a few concepts that make the structure of
-the language more regular and modular.
-They will simplify the definition of the semantics and make it more general.
+the language more regular and more modular.
+They will simplify the definition of semantics.
 
 
 ### Polarity of terms
@@ -195,7 +196,7 @@ Polarity enables the definition of an evaluation strategy
 independently from the concrete combinators.
 
 As it was mentioned before, the terms of concatenative languages are informally
-divided into two categories, which are called combinators and arguments.
+divided into two categories.
 In Fluent these categories are formalized as negative and positive terms.
 In concatenative combinatory logic (CCL) [6] [7], the distinction is also
 made formal as *combinators* and *quotations*.
@@ -435,5 +436,5 @@ the combinator is read last.
   https://web.archive.org/web/20231202225035fw_/http://enchiladacode.nl/reference.html#rewriting
 - [6] Brent Kirby: The theory of concatenative combinators  
   http://tunes.org/~iepos/joy.html
-- [7] Remo Dentato: The role of quotes in Concatenative Combinatory Logic
+- [7] Remo Dentato: The role of quotes in Concatenative Combinatory Logic  
   https://hackmd.io/@qeHlwm2zQ62-hoUHOp_E5w/r11Zu4a0t
