@@ -52,10 +52,10 @@ in their place.
 Most concatenative languages use postfix notation.
 
 Fluent differs from a typical concatenative language in a couple of ways.
-First of all, it uses prefix notation.
+First of all, Fluent uses prefix notation.
 The semantics is a small-step operational semantics based on an abstract
 machine.
-The abstract machine has a stack, but it is a stack of combinators.
+The abstract machine has a stack, but it is a stack of negative terms.
 In this respect, Fluent is dual to stack-based languages.
 
 Fluent is a stream processing language inspired by Unix pipelines.
@@ -86,10 +86,6 @@ Paren      ::= [()]
 OpSym      ::= [+-*=!?/\\|<>$@#%^&~:]+
 String     ::= "[^"]*"
 ~~~
-
-*Names* and *symbols* have different roles in the language.
-Lowercase names are translated to negative terms, while uppercase symbols
-are translated to positive terms.
 
 Including lists in the syntax seems redundant, since they are just
 a sequence of terms enclosed in parentheses.
@@ -151,7 +147,7 @@ while `()` is the empty list.
 
 ### Embedded interpretation
 
-Fluent is an *interpreted* language, where preprocessing of source code is
+Fluent is an interpreted language, where preprocessing of source code is
 interleaved with execution.
 Some interpreted languages expose this feature to the user via an `eval` function.
 Fluent takes this idea a step further by exposing the parser to the user.
@@ -162,9 +158,11 @@ write programs that communicate via data structures.
 
 To evaluate source code given as a string `s`, one has to execute the
 following program.
+It is a *kernel*, a program that is built internally as an abstract syntax tree.
+A kernel allows the interpreter to use the same combinators as the user.
 
 ~~~
-vals lists tokens s End
+vals lists tokens s End End
 ~~~
 
 The `tokens` combinator converts the string into a stream of tokens.
@@ -172,17 +170,18 @@ The `tokens` combinator converts the string into a stream of tokens.
 them with the `list` combinator.
 `list` collects items into a list, stopping at the closing perenthesis.
 For example, `list a b c )` is translated to `cons a cons b cons c ()`.
-`list` and `lists` parse nested lists in interplay.
+`list` and `lists` can parse nested lists in interplay.
+`lists` stops at the `End` symbol. 
 
-`lists tokens` together act as a parser that converts a string into
+`lists tokens` acts as a parser that converts a string into
 abstract syntax.
 The final step of interpretation is to assign polarity to terms.
 It is done by the `vals` combinator, which converts abstract syntax into
 an executable program.
-`End` terminates the list of terms to be evaluated.
+Evaluation stops at the second `End` terminator.
 
 
-## Towards semantics
+## Steps towards semantics
 
 In this section I introduce a few concepts that make the structure of
 the language more regular and modular.
