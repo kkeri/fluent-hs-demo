@@ -1,0 +1,106 @@
+# Peano arithmetics
+
+#### Helpers ####
+
+# Apply a list to the first argument.
+def apply (vals flat)
+
+# Apply a list on the right of the first argument.
+def dip (apply cons swap)
+
+# Check if the next term is a specific token, fail if not.
+def match (cond () (error) eqtok)
+
+# Printing
+def newline (print "\n")
+def println (print dip (newline))
+def section (newline print dip (print ": "))
+
+section "dip"
+dip (A) B ;
+dip (X) S T ;
+dip (dup) S T ;
+
+
+#### Flat Nats ####
+
+# Peano numbers are natural numbers (Nats) represented as a counting up from zero.
+# In Fluent, Nats can be encoded a couple of ways.
+
+# Flat Nats are encoded as sequences of positive terms.
+# 0 is encoded as Z, 1 is encoded as S Z, 2 is encoded as S S Z, and so on.
+
+#### Flat Nats ####
+
+# Pass a flat Nat from right to left unaltered, fail for anything else.
+def passNat
+    (cond (S passNat drop)
+          (cond ()
+                (error)
+                eqtok Z dup)
+          eqtok S dup)
+
+# Add two flat Nats.
+def addNat
+    (cond (S addNat drop)
+          (cond (passNat drop)
+                (error)
+                eqtok Z dup)
+          eqtok S dup)
+
+section "addNat"
+
+addNat Z Z ;
+addNat S S Z S Z ;
+
+
+
+#### Nested Nats ####
+
+# Nested Nats are encoded as nested pairs.
+# For example, 0 is encoded as (Z), 2 is encoded as (S S Z).
+#
+# Compare this representation to
+# Altenkirch et al: ΠΣ: Dependent Types without the Sugar (2.2)
+# https://www.cse.chalmers.se/~nad/publications/altenkirch-et-al-flops2010.pdf
+
+# Convert a flat Nat to a nested Nat.
+def nestNat
+    (cond (cons S nestNat drop)
+          (cond ((Z) drop)
+                (error)
+                eqtok Z dup)
+          eqtok S dup)
+
+nestNat Z ;
+nestNat S Z ;
+nestNat S S Z ;
+
+section "uncons"
+
+uncons (S) ;
+uncons cons S () ;
+uncons (S S) ;
+match () match Z uncons match S uncons (S Z) ;
+
+# Convert a nested Nat to a flat Nat and fail for anything else.
+def flatNat
+    (cond (dip (flatNat))
+          (cond (dip (drop))  # drop Nil
+                (error)
+                eqtok Z dup)
+          eqtok S dup uncons)
+
+
+section "flatNat"
+
+flatNat (Z) ;
+flatNat (S Z) ;
+flatNat (S S Z) ;
+
+# Add two nested Nats.
+
+
+
+
+newline
