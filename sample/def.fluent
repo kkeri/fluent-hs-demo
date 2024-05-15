@@ -1,0 +1,54 @@
+# Definitions
+
+## Definitions are self-recursive.
+
+# Erase a sequence of A's
+def eraseA
+    (cond (eraseA drop) () eqtok A dup)
+
+eraseA ;
+eraseA ;
+eraseA A A A ;
+
+print "\n"
+
+## Definitions are mutually recursive.
+
+# Erase a sequence of C's and D's
+def eraseC
+    (cond (eraseC drop) 
+          (cond (eraseD drop)
+                ()
+                eqtok D dup)
+          eqtok C dup)
+
+def eraseD
+      (cond (eraseD drop) 
+            (cond (eraseC drop)
+                  ()
+                  eqtok D dup)
+            eqtok C dup)
+
+eraseC ;
+eraseD ;
+eraseC C ;
+eraseC D ;
+eraseD C ;
+eraseD D ;
+eraseC C C ;
+eraseC C D ;
+eraseC D C ;
+eraseC D D ;
+eraseC C C D D C D D C D ;
+
+print "\n"
+
+
+# Whether a definition is available before its definition depends on whether
+# compilation is staged.
+# Staging forces the completion of a compilation step before the next
+# compilation step can begin.
+# Staging is only necessary when there is a hidden state that is maintained
+# between compilation steps. In this case it is the environment.
+
+def stage (flat nest)
