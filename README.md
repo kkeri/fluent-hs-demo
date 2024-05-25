@@ -86,7 +86,7 @@ List       ::= "(" Program ")"
 Name       ::= [a-z][a-z0-9]*
 Symbol     ::= [A-Z][a-z0-9]*
 Paren      ::= [()]
-OpSym      ::= [+-*=!?/\\|<>$@#%^&~:]+
+OpSym      ::= [+-*=!?/\\|<>$@#%^&~:;]+
 String     ::= "[^"]*"
 ~~~
 
@@ -127,21 +127,32 @@ list ) => ()                    Finish parsing a list.
 list p => cons p list           Prepend all other terms to a list.
 
 lists End => End                Finish parsing lists.
-lists ( => list lists           Start parsing a list.
-lists p => p lists              Pass anything else.
+lists (   => list lists         Start parsing a list.
+lists p   => p lists            Pass anything else.
 
 nest End => ()                  Finish nesting a flat list.
 nest p   => cons p nest         Convert a flat list to a nested list.
 
-flat () => End                  Finish flattening a nested list.
+flat ()      => End             Finish flattening a nested list.
 flat (p ...) => p flat (...)    Flatten a nested list.
 
 eval p => t                     Evaluate a term.
 
 vals End =>                     Finish evaluating a flat list.
-vals p => eval p vals           Evaluate a flat list of terms.
+vals p   => eval p vals         Evaluate a flat list of terms.
 
 fix p => vals flat p (fix p)    Fixed-point combinator.
+
+neg <Token> => t                Convert a token to a negative term.
+
+isname <Name> => True           Check if a term is a name.
+isname p      => False
+
+issym <Symbol> => True          Check if a term is a symbol.
+issym p        => False
+
+islist (...) => True            Check if a term is a list.
+islist p     => False
 ~~~
 
 This combinator base is not minimal.

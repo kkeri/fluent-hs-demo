@@ -30,7 +30,6 @@ data Neg
   | Part Neg [Pos]      -- Partial application
 
 data Pos
-  -- Syntax (terms)
   = PToken Token        -- Token
   | Pair Pos Pos        -- Building block of lists
   | PError Pos          -- Runtime error
@@ -49,8 +48,10 @@ pattern Symbol s = PToken (Sym s)
 pattern Dup     = Combinator "dup"
 pattern Swap    = Combinator "swap"
 pattern Drop    = Combinator "drop"
+
 pattern Cons    = Combinator "cons"
 pattern Uncons  = Combinator "uncons"
+
 pattern Tokens  = Combinator "tokens"
 pattern List    = Combinator "list"
 pattern Lists   = Combinator "lists"
@@ -65,6 +66,11 @@ pattern EqTok   = Combinator "eqtok"
 pattern NError  = Combinator "nerror"
 pattern NCont   = Combinator "ncont"
 pattern Effect  = Combinator "effect"
+pattern Neg_    = Combinator "neg"
+
+pattern IsName  = Combinator "isname"
+pattern IsSym   = Combinator "issym"
+pattern IsList  = Combinator "islist"
 
 pattern Nil     = Symbol "Nil"
 pattern End     = Symbol "End"
@@ -181,6 +187,19 @@ interact n p = case (n, p) of
 
   (Effect, a)                  -> Just [Neg $ Part Effect [a]]
   -- (Part Effect [a], b)         -> effect a b
+
+  (Neg_, PToken t)             -> Just [Neg $ NToken t]
+  (Neg_, a)                    -> Just [runtimeError "neg: not a token: " a]
+
+  (IsName, PToken (Name _))    -> Just [Pos True]
+  (IsName, _)                  -> Just [Pos False]
+
+  (IsSym, PToken (Sym _))      -> Just [Pos True]
+  (IsSym, _)                   -> Just [Pos False]
+
+  (IsList, Nil)                -> Just [Pos True]
+  (IsList, Pair _ _)           -> Just [Pos True]
+  (IsList, _)                  -> Just [Pos False]
 
   -- undefined interactions
   _                            -> Nothing
