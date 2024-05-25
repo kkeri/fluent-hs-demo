@@ -1,9 +1,12 @@
 -- Native effect handlers.
 
+{-# LANGUAGE PatternSynonyms #-}
+
 module Handler where
 
 import           Core
 import           Eval
+import           Prelude     hiding (interact)
 import           System.Exit (ExitCode (..))
 
 
@@ -11,21 +14,36 @@ import           System.Exit (ExitCode (..))
 -- Interaction handler
 ------------------------------------------------------------------------------
 
--- Convert an interaction function to an effect handler.
-interactHandler :: Interact n p -> Handler n p
-interactHandler interact pr = case pr of
+-- Wraps the interaction function into an effect handler.
+-- Also converts embedded effects to native effects.
+interactHandler :: Handler Neg Pos
+interactHandler pr = case pr of
+  -- PInter Effect p            -> interactHandler . k $ [Neg $ Part Effect [p]]
+  -- PInter (Part Effect [a]) p -> PEffect a p
   PInter n p k  -> case interact n p of
-    Just p' -> interactHandler interact . k $ p'
+    Just p' -> interactHandler . k $ p'
     -- fall through to the next handler
-    Nothing -> PInter n p (interactHandler interact . k)
-  POutput v k   -> POutput v (interactHandler interact . k)
-  PInput k      -> PInput (interactHandler interact . k)
+    Nothing -> PInter n p (interactHandler . k)
+  POutput v k   -> POutput v (interactHandler . k)
+  PInput k      -> PInput (interactHandler . k)
   PFinish       -> PFinish
 
 
 ------------------------------------------------------------------------------
 -- User definitions
 ------------------------------------------------------------------------------
+
+pattern Defs :: Neg
+pattern Defs = NToken (Name "defs")
+
+pattern Def :: Neg
+pattern Def = NToken (Name "def")
+
+pattern GetDef :: Neg
+pattern GetDef = NToken (Name "getdef")
+
+pattern Print :: Neg
+pattern Print = NToken (Name "print")
 
 -- Usage:
 -- - Insert a `defHandler` into the handler chain.
@@ -45,30 +63,30 @@ defHandler e pr = case pr of
 
   handleInter :: Neg -> Pos -> Cont Neg Pos -> Proc Neg Pos
   handleInter n p k = case n of
-    User "defs"           -> handleDefs p k
-    User "def"            -> defHandler e . k $ [Neg $ Part (User "def") [p]]
-    Part (User "def") [m] -> handleDef m p k
-    Eval                  -> handleEval p k
-    User "getdef"         -> handleGetDef p k
-    _                     -> PInter n p (defHandler e . k)
+    Defs         -> handleDefs p k
+    Def          -> defHandler e . k $ [Neg $ Part Def [p]]
+    Part Def [m] -> handleDef m p k
+    Eval         -> handleEval p k
+    GetDef       -> handleGetDef p k
+    _            -> PInter n p (defHandler e . k)
 
   -- Detect definitions in the program.
   handleDefs :: Pos -> Cont Neg Pos -> Proc Neg Pos
   handleDefs p k = case p of
-    End                  -> defHandler e . k $ []
-    (Token (Name "def")) -> defHandler e . k $ [Neg $ User "def", Neg $ User "defs"]
-    p                    -> defHandler e . k $ [Pos p, Neg $ User "defs"]
+    End                   -> defHandler e . k $ []
+    (PToken (Name "def")) -> defHandler e . k $ [Neg Def, Neg Defs]
+    p                     -> defHandler e . k $ [Pos p, Neg Defs]
 
   -- Add definition to the environment.
   handleDef :: Pos -> Pos -> Cont Neg Pos -> Proc Neg Pos
   handleDef name body k = case name of
-    Token (Name n) -> defHandler ((n, body):e) . k $ []
+    PToken (Name n) -> defHandler ((n, body):e) . k $ []
     _              -> defHandler e . k $ [runtimeError "def: not a lowercase name: " name]
 
   -- Resolve a definition.
   handleEval :: Pos -> Cont Neg Pos -> Proc Neg Pos
   handleEval p k = case p of
-    Token (Name n) -> case lookup n e of
+    PToken (Name n) -> case lookup n e of
       Just v  -> defHandler e . k $ [Neg Vals, Neg Flat, Pos v]
       -- fall through to the next handler
       Nothing -> PInter Eval p (defHandler e . k)
@@ -77,7 +95,7 @@ defHandler e pr = case pr of
   -- Get a definition by name but do not apply it.
   handleGetDef :: Pos -> Cont Neg Pos -> Proc Neg Pos
   handleGetDef name k = case name of
-    Token (Str n) -> case lookup n e of
+    PToken (Str n) -> case lookup n e of
       Just v  -> defHandler e . k $ [Pos v]
       Nothing -> defHandler e . k $ [runtimeError "def: not found: " name]
     _             -> defHandler e . k $ [runtimeError "def: not a lowercase name: " name]
@@ -105,7 +123,7 @@ execIO pr = case pr of
 
   handleInter :: Neg -> Pos -> Cont Neg Pos -> IO ExitCode
   handleInter n p k = case n of
-    User "print" -> do
+    Print -> do
       putStr (toString p)
       execIO (k [])
     _ -> do
@@ -114,5 +132,5 @@ execIO pr = case pr of
 
   toString :: Pos -> String
   toString p = case p of
-    Token (Str s) -> s
-    _             -> show p
+    PToken (Str s) -> s
+    _              -> show p

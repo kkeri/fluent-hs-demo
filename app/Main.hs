@@ -10,11 +10,13 @@ import           Handler
 
 -- Build a kernel that interpreters a string.
 -- kern (s ++ t) = (kern s) ++ (kern t)
+-- kern (kern s) = kern s
 kern :: String -> Prog Neg Pos
 kern s = [ Neg Vals
-           , Neg $ User "defs"
+           , Neg Defs
              , Neg Lists
-             , Neg Tokens, Pos $ Token (Str s)
+             , Neg Tokens
+             , Pos $ PToken (Str s)
              , Pos End
            , Pos End
          ]
@@ -22,5 +24,5 @@ kern s = [ Neg Vals
 main :: IO ()
 main = do
   s <- getContents
-  xc <- execIO . interactHandler interact . defHandler [] . cont $ kern s
+  xc <- execIO . interactHandler . defHandler [] . cont $ kern s
   exitWith xc

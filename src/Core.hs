@@ -1,11 +1,16 @@
 -- Syntax of the core language.
 
+{-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant if" #-}
+
 module Core where
 
 import           Data.Char   (isAlphaNum, isSpace)
-import           Eval
 import           GHC.Unicode (isLower, isUpper)
 import           Prelude     hiding (False, True, interact)
+
+import           Eval
 
 ------------------------------------------------------------------------------
 -- Types
@@ -20,41 +25,88 @@ data Token
   deriving (Eq)
 
 data Neg
-  -- Predefined combinators
-  = Dup                 -- Duplicate a term
-  | Swap                -- Swap two terms
-  | Drop                -- Drop a term
-  | Cons                -- Prepend a term to a list
-  | Uncons              -- Split a list into its head and tail
-  | Tokens              -- Tokenize a string
-  | List                -- Parse a list
-  | Lists               -- Parse lists, passes anything else
-  | Nest                -- Cons together the following terms until end symbol
-  | Flat                -- The inverse of Nest
-  | Eval                -- Evaluate a positive term
-  | Vals                -- Evaluate a stream of positive terms
-  | Fix                 -- Fixed-point combinator
-  | NDump               -- Negative end of stack dump region
-  | Cond                -- Conditionally applies one of two functions
-  | EqTok               -- Token equality test
-  | NError              -- Create runtime error
-
-  | User String         -- User-defined combinator
+  = NToken Token        -- token used as a combinator
   | Part Neg [Pos]      -- Partial application
 
 data Pos
   -- Syntax (terms)
-  = Token Token         -- Token
+  = PToken Token        -- Token
   | Pair Pos Pos        -- Building block of lists
-  | Nil                 -- Empty list
-  -- Internal terms
-  | End                 -- End of a flat list
-  | PDump               -- Positive end of stack dump region
-  | True                -- Boolean true
-  | False               -- Boolean false
-
   | PError Pos          -- Runtime error
-  | Cont (Cont Neg Pos) -- Continuation
+  | PCont (Cont Neg Pos) -- Continuation
+
+-- Use pattern synonyms for readability
+pattern Dup :: Neg
+pattern Dup = NToken (Name "dup")
+
+pattern Swap :: Neg
+pattern Swap = NToken (Name "swap")
+
+pattern Drop :: Neg
+pattern Drop = NToken (Name "drop")
+
+pattern Cons :: Neg
+pattern Cons = NToken (Name "cons")
+
+pattern Uncons :: Neg
+pattern Uncons = NToken (Name "uncons")
+
+pattern Tokens :: Neg
+pattern Tokens = NToken (Name "tokens")
+
+pattern List :: Neg
+pattern List = NToken (Name "list")
+
+pattern Lists :: Neg
+pattern Lists = NToken (Name "lists")
+
+pattern Nest :: Neg
+pattern Nest = NToken (Name "nest")
+
+pattern Flat :: Neg
+pattern Flat = NToken (Name "flat")
+
+pattern Eval :: Neg
+pattern Eval = NToken (Name "eval")
+
+pattern Vals :: Neg
+pattern Vals = NToken (Name "vals")
+
+pattern Fix :: Neg
+pattern Fix = NToken (Name "fix")
+
+pattern NDump :: Neg
+pattern NDump = NToken (Name "ndump")
+
+pattern Cond :: Neg
+pattern Cond = NToken (Name "cond")
+
+pattern EqTok :: Neg
+pattern EqTok = NToken (Name "eqtok")
+
+pattern NError :: Neg
+pattern NError = NToken (Name "nerror")
+
+pattern NCont :: Neg
+pattern NCont = NToken (Name "ncont")
+
+pattern Effect :: Neg
+pattern Effect = NToken (Name "effect")
+
+pattern Nil :: Pos
+pattern Nil = PToken (Name "Nil")
+
+pattern End :: Pos
+pattern End = PToken (Name "End")
+
+pattern PDump :: Pos
+pattern PDump = PToken (Name "PDump")
+
+pattern True :: Pos
+pattern True = PToken (Name "True")
+
+pattern False :: Pos
+pattern False = PToken (Name "False")
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -68,7 +120,7 @@ instance Show Token where
   show (Str s)    = show s
 
 instance Show Pos where
-  show (Token t)  = show t
+  show (PToken t) = show t
 
   show (Pair a b) = "(" ++ showPair a b ++ ")"
   show Nil        = "()"
@@ -78,7 +130,7 @@ instance Show Pos where
   show True       = "True"
   show False      = "False"
   show (PError e) = "error " ++ show e
-  show (Cont _)   = "<cont>"
+  show (PCont _)  = "<cont>"
 
 showPair :: Pos -> Pos -> String
 showPair a (Pair b c) = show a <> " " ++ showPair b c
@@ -100,7 +152,7 @@ instance Show Neg where
 ------------------------------------------------------------------------------
 
 -- Compute the interaction of two terms.
-interact :: Interact Neg Pos
+interact :: Neg -> Pos -> Maybe (Prog Neg Pos)
 interact n p = case (n, p) of
 
   -- error propagation
@@ -124,14 +176,14 @@ interact n p = case (n, p) of
   (Uncons, Pair a b)           -> Just [Pos a, Pos b]
   (Uncons, _)                  -> Just [runtimeError "uncons: not a list: " p]
 
-  (Tokens, Token (Str s))      -> Just (tokens s)
+  (Tokens, PToken (Str s))     -> Just (tokens s)
   (Tokens, _)                  -> Just [runtimeError "tokens: not a string: " p]
 
-  (List, Token (Paren ')'))    -> Just [Pos Nil]
+  (List, PToken (Paren ')'))   -> Just [Pos Nil]
   (List, a)                    -> Just [Neg Cons, Pos a, Neg List]
 
   (Lists, End)                 -> Just []
-  (Lists, Token (Paren '('))   -> Just [Neg List, Neg Lists]
+  (Lists, PToken (Paren '('))  -> Just [Neg List, Neg Lists]
   (Lists, a)                   -> Just [Pos a, Neg Lists]
 
   (Nest, End)                  -> Just [Pos Nil]
@@ -146,7 +198,7 @@ interact n p = case (n, p) of
   (Vals, End)                  -> Just []
   (Vals, a)                    -> Just [Neg Eval, Pos a, Neg Vals]
 
-  (Fix, f)                     -> Just [Neg Vals, Neg Flat, Pos f, Pos $ Pair (Token (Name "fix")) $ Pair f Nil]
+  (Fix, f)                     -> Just [Neg Vals, Neg Flat, Pos f, Pos $ Pair (PToken (Name "fix")) $ Pair f Nil]
 
   (Cond, a)                    -> Just [Neg $ Part Cond [a]]
   (Part Cond [a, _], True)     -> Just [Neg Vals, Neg Flat, Pos a]
@@ -154,17 +206,23 @@ interact n p = case (n, p) of
   (Part Cond [a], b)           -> Just [Neg $ Part Cond [a, b]]
 
   (EqTok, a)                   -> Just [Neg $ Part EqTok [a]]
-  (Part EqTok [Token t], Token t') -> Just [Pos $ if t == t' then True else False]
+  (Part EqTok [PToken t], PToken t') -> Just [Pos $ if t == t' then True else False]
   (Part EqTok [Nil], Nil)       -> Just [Pos True]
   (Part EqTok [_], _)          -> Just [Pos False]
 
   (NError, a)                  -> Just [Pos $ PError a]
 
+  (NCont, PCont k)             -> Just [Neg $ Part NCont [PCont k]]
+  -- (Part NCont [PCont k], a)    -> Just $ cont (k a)
+
+  (Effect, a)                  -> Just [Neg $ Part Effect [a]]
+  -- (Part Effect [a], b)         -> effect a b
+
   -- undefined interactions
   _                            -> Nothing
 
 runtimeError :: String -> Pos -> Value Neg Pos
-runtimeError msg t = Pos (PError $ Pair (Token (Str msg)) $ Pair t Nil)
+runtimeError msg t = Pos (PError $ Pair (PToken (Str msg)) $ Pair t Nil)
 
 -- Lazily splits a string to a flat list of tokens.
 tokens :: String -> Prog Neg Pos
@@ -173,76 +231,36 @@ tokens s = case s of
   c : cs | isSpace c -> tokens cs
   c : cs | c == '#' -> let (_, rest) = span (/= '\n') cs in tokens rest
   c : cs | c `elem` opChar -> let (tok, rest) = span (`elem` opChar) cs
-                              in [Pos $ Token $ Op (c:tok), Neg Tokens, Pos $ Token $ Str rest]
+                              in [Pos $ PToken $ Op (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
   c : cs | isLower c -> let (tok, rest) = span isAlphaNum cs
-                        in [Pos $ Token $ Name (c:tok), Neg Tokens, Pos $ Token $ Str rest]
+                        in [Pos $ PToken $ Name (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
   c : cs | isUpper c -> let (tok, rest) = span isAlphaNum cs
-                        in [Pos $ Token $ Symbol (c:tok), Neg Tokens, Pos $ Token $ Str rest]
-  c : cs | c `elem` "(){}[]" -> [Pos $ Token $ Paren c, Neg Tokens, Pos $ Token $ Str cs]
+                        in [Pos $ PToken $ Symbol (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
+  c : cs | c `elem` "(){}[]" -> [Pos $ PToken $ Paren c, Neg Tokens, Pos $ PToken $ Str cs]
   '"' : cs -> strToken cs "\""
-  c : _ -> [runtimeError "unexpected character" (Token $ Str [c])]
+  c : _ -> [runtimeError "unexpected character" (PToken $ Str [c])]
 
 strToken :: String -> String -> Prog Neg Pos
 strToken ('"':cs) s = let t = read (reverse ('"':s))
-                      in [Pos $ Token $ Str t, Neg Tokens, Pos $ Token $ Str cs]
+                      in [Pos $ PToken $ Str t, Neg Tokens, Pos $ PToken $ Str cs]
 strToken (c:cs) s   = strToken cs (c:s)
-strToken [] s       = [runtimeError "unexpected end of input in string literal" (Token $ Str s)]
+strToken [] s       = [runtimeError "unexpected end of input in string literal" (PToken $ Str s)]
 
 opChar :: String
 opChar = "+-*=!?/\\|<>$@#%^&~,.:;"
 
 -- Evaluate a positive term.
 eval :: Pos -> Value Neg Pos
-eval (Token (Name n))   = Neg (evalName n)
-eval (Token (Symbol n)) = Pos (evalSymbol n)
-eval a                  = Pos a
-
-evalName :: String -> Neg
-evalName "dup"    = Dup
-evalName "swap"   = Swap
-evalName "drop"   = Drop
-evalName "cons"   = Cons
-evalName "uncons" = Uncons
-evalName "tokens" = Tokens
-evalName "list"   = List
-evalName "lists"  = Lists
-evalName "nest"   = Nest
-evalName "flat"   = Flat
-evalName "eval"   = Eval
-evalName "vals"   = Vals
-evalName "fix"    = Fix
-evalName "ndump"  = NDump
-evalName "cond"   = Cond
-evalName "eqtok"  = EqTok
-evalName "error"  = NError
-evalName s        = User s
-
-evalSymbol :: String -> Pos
-evalSymbol "End"   = End
-evalSymbol "PDump" = PDump
-evalSymbol "True"  = True
-evalSymbol "False" = False
-evalSymbol s       = Token (Symbol s)
+eval (PToken (Name n)) = Neg (NToken (Name n))
+eval a                 = Pos a
 
 -- Quote a negative value.
 quote :: Neg -> [Pos]
 -- predefined combinators
-quote Dup         = [Token $ Name "dup"]
-quote Swap        = [Token $ Name "swap"]
-quote Drop        = [Token $ Name "drop"]
-quote Cons        = [Token $ Name "cons"]
-quote Uncons      = [Token $ Name "uncons"]
-quote Tokens      = [Token $ Name "tokens"]
-quote List        = [Token $ Name "list"]
-quote Lists       = [Token $ Name "lists"]
-quote Nest        = [Token $ Name "nest"]
-quote Flat        = [Token $ Name "flat"]
-quote Eval        = [Token $ Name "eval"]
-quote Vals        = [Token $ Name "vals"]
-quote NDump       = [Token $ Name "ndump"]
-quote Fix         = [Token $ Name "fix"]
-quote Cond        = [Token $ Name "cond"]
-quote EqTok       = [Token $ Name "eqtok"]
-quote NError      = [Token $ Name "error"]
-quote (User s)    = [Token $ Name s]
+quote (NToken t)  = [PToken t]
 quote (Part n ps) = quote n ++ ps
+
+
+apply :: Pos -> Prog Neg Pos
+apply (Pair a b) = [Neg Vals, Neg Flat, Pos $ Pair a b]
+apply a          = [eval a]
