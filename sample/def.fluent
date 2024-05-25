@@ -1,5 +1,9 @@
 # Definitions
 
+# Note: `;` does not have a special meaning in the core language.
+# It is just a token that is passed through the interpreter.
+# It is used here as an output separator.
+
 ## Definitions are self-recursive.
 
 # Erase a sequence of A's
@@ -42,13 +46,3 @@ eraseC D D ;
 eraseC C C D D C D D C D ;
 
 print "\n"
-
-
-# Whether a definition is available before its definition depends on whether
-# compilation is staged.
-# Staging forces the completion of a compilation step before the next
-# compilation step can begin.
-# Staging is only necessary when there is a hidden state that is maintained
-# between compilation steps. In this case it is the environment.
-
-def stage (flat nest)
