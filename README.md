@@ -68,6 +68,9 @@ hence programs are more verbose than in other programming languages.
 This is not a drawback, as it is assumed that most programs
 will be written in a high-level dialect of Fluent.
 
+Last but not least, the core language is dynamically typed, but it is developed
+with a static type system in mind.
+
 
 ## Syntax
 
@@ -279,8 +282,13 @@ The reduction rules for interactions can be extracted into an
 and returns a program.
 
 ~~~
-interact : Term -> Term -> Program
+interact : Neg -> Pos -> Maybe Prog
 ~~~
+
+The interaction function is partial, because not all negative terms
+can interact with all positive terms.
+In the interpreter, unhandled interactions are converted to effects and
+passed to the active *effect handlers*.
 
 
 ## Operational semantics
