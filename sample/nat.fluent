@@ -70,6 +70,8 @@ def nestNat
                 eqtok Z dup)
           eqtok S dup)
 
+section "nestNat"
+
 nestNat Z ;
 nestNat S Z ;
 nestNat S S Z ;
