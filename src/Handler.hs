@@ -73,9 +73,11 @@ defHandler e pr = case pr of
 
   -- Add definition to the environment.
   handleDef :: Pos -> Pos -> Cont Neg Pos -> Proc Neg Pos
-  handleDef name body k = case name of
-    PToken (Name n) -> defHandler ((n, body):e) . k $ []
-    _              -> defHandler e . k $ [runtimeError "def: not a lowercase name: " name]
+  handleDef name body k = case (name, body) of
+    (PToken (Name n), Pair h t) -> defHandler ((n, Pair h t):e) . k $ []
+    (PToken (Name n), Nil)      -> defHandler ((n, Nil):e) . k $ []
+    (PToken (Name _), b)        -> defHandler e . k $ [runtimeError "def: body is not a list: " b]
+    (n, _)                      -> defHandler e . k $ [runtimeError "def: not a lowercase name: " n]
 
   -- Resolve a definition.
   handleEval :: Pos -> Cont Neg Pos -> Proc Neg Pos
