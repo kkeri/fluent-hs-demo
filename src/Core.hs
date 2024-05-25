@@ -1,8 +1,9 @@
 -- Syntax of the core language.
 
-{-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant if" #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 
 module Core where
 
@@ -18,7 +19,7 @@ import           Eval
 
 data Token
   = Name String         -- Lowercase name
-  | Symbol String       -- Capitalized name
+  | Sym String          -- Capitalized name
   | Op String           -- Operator symbol
   | Paren Char          -- Parenthesis
   | Str String          -- String literal
@@ -35,89 +36,52 @@ data Pos
   | PError Pos          -- Runtime error
   | PCont (Cont Neg Pos) -- Continuation
 
--- Use pattern synonyms for readability
-pattern Dup :: Neg
-pattern Dup = NToken (Name "dup")
+------------------------------------------------------------------------------
+-- Pattern synonyms for readability
+------------------------------------------------------------------------------
 
-pattern Swap :: Neg
-pattern Swap = NToken (Name "swap")
+pattern Combinator :: String -> Neg
+pattern Combinator s = NToken (Name s)
 
-pattern Drop :: Neg
-pattern Drop = NToken (Name "drop")
+pattern Symbol :: String -> Pos
+pattern Symbol s = PToken (Sym s)
 
-pattern Cons :: Neg
-pattern Cons = NToken (Name "cons")
+pattern Dup     = Combinator "dup"
+pattern Swap    = Combinator "swap"
+pattern Drop    = Combinator "drop"
+pattern Cons    = Combinator "cons"
+pattern Uncons  = Combinator "uncons"
+pattern Tokens  = Combinator "tokens"
+pattern List    = Combinator "list"
+pattern Lists   = Combinator "lists"
+pattern Nest    = Combinator "nest"
+pattern Flat    = Combinator "flat"
+pattern Eval    = Combinator "eval"
+pattern Vals    = Combinator "vals"
+pattern Fix     = Combinator "fix"
+pattern NDump   = Combinator "ndump"
+pattern Cond    = Combinator "cond"
+pattern EqTok   = Combinator "eqtok"
+pattern NError  = Combinator "nerror"
+pattern NCont   = Combinator "ncont"
+pattern Effect  = Combinator "effect"
 
-pattern Uncons :: Neg
-pattern Uncons = NToken (Name "uncons")
-
-pattern Tokens :: Neg
-pattern Tokens = NToken (Name "tokens")
-
-pattern List :: Neg
-pattern List = NToken (Name "list")
-
-pattern Lists :: Neg
-pattern Lists = NToken (Name "lists")
-
-pattern Nest :: Neg
-pattern Nest = NToken (Name "nest")
-
-pattern Flat :: Neg
-pattern Flat = NToken (Name "flat")
-
-pattern Eval :: Neg
-pattern Eval = NToken (Name "eval")
-
-pattern Vals :: Neg
-pattern Vals = NToken (Name "vals")
-
-pattern Fix :: Neg
-pattern Fix = NToken (Name "fix")
-
-pattern NDump :: Neg
-pattern NDump = NToken (Name "ndump")
-
-pattern Cond :: Neg
-pattern Cond = NToken (Name "cond")
-
-pattern EqTok :: Neg
-pattern EqTok = NToken (Name "eqtok")
-
-pattern NError :: Neg
-pattern NError = NToken (Name "nerror")
-
-pattern NCont :: Neg
-pattern NCont = NToken (Name "ncont")
-
-pattern Effect :: Neg
-pattern Effect = NToken (Name "effect")
-
-pattern Nil :: Pos
-pattern Nil = PToken (Symbol "Nil")
-
-pattern End :: Pos
-pattern End = PToken (Symbol "End")
-
-pattern PDump :: Pos
-pattern PDump = PToken (Symbol "PDump")
-
-pattern True :: Pos
-pattern True = PToken (Symbol "True")
-
-pattern False :: Pos
-pattern False = PToken (Symbol "False")
+pattern Nil     = Symbol "Nil"
+pattern End     = Symbol "End"
+pattern PDump   = Symbol "PDump"
+pattern True    = Symbol "True"
+pattern False   = Symbol "False"
 
 ------------------------------------------------------------------------------
 -- Utilities
 ------------------------------------------------------------------------------
 
 instance Show Token where
-  show (Name s)   = s
-  show (Symbol s) = s
-  show (Op s)     = s
-  show (Paren c)  = [c]
-  show (Str s)    = show s
+  show (Name s)  = s
+  show (Sym s)   = s
+  show (Op s)    = s
+  show (Paren c) = [c]
+  show (Str s)   = show s
 
 instance Show Pos where
   show (PToken t) = show t
@@ -235,7 +199,7 @@ tokens s = case s of
   c : cs | isLower c -> let (tok, rest) = span isAlphaNum cs
                         in [Pos $ PToken $ Name (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
   c : cs | isUpper c -> let (tok, rest) = span isAlphaNum cs
-                        in [Pos $ PToken $ Symbol (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
+                        in [Pos $ PToken $ Sym (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
   c : cs | c `elem` "(){}[]" -> [Pos $ PToken $ Paren c, Neg Tokens, Pos $ PToken $ Str cs]
   '"' : cs -> strToken cs "\""
   c : _ -> [runtimeError "unexpected character" (PToken $ Str [c])]
@@ -251,7 +215,7 @@ opChar = "+-*=!?/\\|<>$@#%^&~,.:;"
 
 -- Evaluate a positive term.
 eval :: Pos -> Value Neg Pos
-eval (PToken (Name n)) = Neg (NToken (Name n))
+eval (PToken (Name n)) = Neg (Combinator n)
 eval a                 = Pos a
 
 -- Quote a negative value.

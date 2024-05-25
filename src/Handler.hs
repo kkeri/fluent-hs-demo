@@ -1,6 +1,7 @@
 -- Native effect handlers.
 
 {-# LANGUAGE PatternSynonyms #-}
+{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 
 module Handler where
 
@@ -33,17 +34,10 @@ interactHandler pr = case pr of
 -- User definitions
 ------------------------------------------------------------------------------
 
-pattern Defs :: Neg
-pattern Defs = NToken (Name "defs")
-
-pattern Def :: Neg
-pattern Def = NToken (Name "def")
-
-pattern GetDef :: Neg
-pattern GetDef = NToken (Name "getdef")
-
-pattern Print :: Neg
-pattern Print = NToken (Name "print")
+pattern Defs   = Combinator "defs"
+pattern Def    = Combinator "def"
+pattern GetDef = Combinator "getdef"
+pattern Print  = Combinator "print"
 
 -- Usage:
 -- - Insert a `defHandler` into the handler chain.
