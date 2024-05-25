@@ -73,7 +73,7 @@ defHandler e pr = case pr of
   -- Detect definitions in the program.
   handleDefs :: Pos -> Cont Neg Pos -> Proc Neg Pos
   handleDefs p k = case p of
-    End                   -> defHandler e . k $ []
+    End                   -> defHandler e . k $ [Pos End]
     (PToken (Name "def")) -> defHandler e . k $ [Neg Def, Neg Defs]
     p                     -> defHandler e . k $ [Pos p, Neg Defs]
 

@@ -13,12 +13,10 @@ import           Handler
 -- kern (kern s) = kern s
 kern :: String -> Prog Neg Pos
 kern s = [ Neg Vals
-           , Neg Defs
-             , Neg Lists
-             , Neg Tokens
-             , Pos $ PToken (Str s)
-             , Pos End
-           , Pos End
+         , Neg Defs
+         , Neg Lists
+         , Neg Tokens
+         , Pos $ PToken (Str s)
          ]
 
 main :: IO ()
