@@ -1,6 +1,6 @@
 -- Language independent semantics.
 
-module Eval where
+module Proc where
 
 import           Data.Monoid ()
 

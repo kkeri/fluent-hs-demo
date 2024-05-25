@@ -6,8 +6,8 @@
 module Handler where
 
 import           Core
-import           Eval
 import           Prelude     hiding (interact)
+import           Proc
 import           System.Exit (ExitCode (..))
 
 

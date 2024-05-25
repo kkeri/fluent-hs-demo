@@ -25,8 +25,8 @@ source-repository head
 library
   exposed-modules:
       Core
-      Eval
       Handler
+      Proc
   other-modules:
       Paths_fluent_hs_demo
   autogen-modules:

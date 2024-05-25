@@ -5,8 +5,8 @@ import           Prelude     hiding (interact)
 import           System.Exit
 
 import           Core
-import           Eval
 import           Handler
+import           Proc
 
 -- Build a kernel that interpreters a string.
 -- kern (s ++ t) = (kern s) ++ (kern t)

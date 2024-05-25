@@ -11,7 +11,7 @@ import           Data.Char   (isAlphaNum, isSpace)
 import           GHC.Unicode (isLower, isUpper)
 import           Prelude     hiding (False, True, interact)
 
-import           Eval
+import           Proc
 
 ------------------------------------------------------------------------------
 -- Types
