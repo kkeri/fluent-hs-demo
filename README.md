@@ -401,7 +401,7 @@ show that:
 - the mappings are homomorphic
 - the domains are isomorphic
 
-Ideally, a kernel is idempotent and it is a homomorphism.
+Ideally, a kernel is a homomorphism.
 
 
 ### Inverse of programs
