@@ -25,7 +25,7 @@ data Token
   deriving (Eq)
 
 data Neg
-  = NToken Token        -- token used as a combinator
+  = NToken Token        -- A token that is used as a combinator
   | Part Neg [Pos]      -- Partial application
 
 data Pos
@@ -94,19 +94,19 @@ pattern Effect :: Neg
 pattern Effect = NToken (Name "effect")
 
 pattern Nil :: Pos
-pattern Nil = PToken (Name "Nil")
+pattern Nil = PToken (Symbol "Nil")
 
 pattern End :: Pos
-pattern End = PToken (Name "End")
+pattern End = PToken (Symbol "End")
 
 pattern PDump :: Pos
-pattern PDump = PToken (Name "PDump")
+pattern PDump = PToken (Symbol "PDump")
 
 pattern True :: Pos
-pattern True = PToken (Name "True")
+pattern True = PToken (Symbol "True")
 
 pattern False :: Pos
-pattern False = PToken (Name "False")
+pattern False = PToken (Symbol "False")
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -182,7 +182,7 @@ interact n p = case (n, p) of
   (List, PToken (Paren ')'))   -> Just [Pos Nil]
   (List, a)                    -> Just [Neg Cons, Pos a, Neg List]
 
-  (Lists, End)                 -> Just []
+  (Lists, End)                 -> Just [Pos End]
   (Lists, PToken (Paren '('))  -> Just [Neg List, Neg Lists]
   (Lists, a)                   -> Just [Pos a, Neg Lists]
 

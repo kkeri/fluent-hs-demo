@@ -126,17 +126,19 @@ tokens s  => p tokens s'        Split a token from a string.
 list ) => ()                    Finish parsing a list.
 list p => cons p list           Prepend all other terms to a list.
 
-lists End =>                    Finish parsing lists.
+lists End => End                Finish parsing lists.
 lists ( => list lists           Start parsing a list.
 lists p => p lists              Pass anything else.
 
 nest End => ()                  Finish nesting a flat list.
-nest p   => cons p nest         Nest a term.
+nest p   => cons p nest         Convert a flat list to a nested list.
 
-flat () => End                  Finish flattening a list.
-flat (p ...) => p flat (...)    Flatten a list.
+flat () => End                  Finish flattening a nested list.
+flat (p ...) => p flat (...)    Flatten a nested list.
 
 eval p => t                     Evaluate a term.
+
+vals End =>                     Finish evaluating a flat list.
 vals p => eval p vals           Evaluate a flat list of terms.
 
 fix p => vals flat p (fix p)    Fixed-point combinator.
