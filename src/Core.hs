@@ -215,9 +215,9 @@ tokens s = case s of
   c : cs | c == '#' -> let (_, rest) = span (/= '\n') cs in tokens rest
   c : cs | c `elem` opChar -> let (tok, rest) = span (`elem` opChar) cs
                               in [Pos $ PToken $ Op (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
-  c : cs | isLower c -> let (tok, rest) = span isAlphaNum cs
+  c : cs | isLower c -> let (tok, rest) = span isNameChar cs
                         in [Pos $ PToken $ Name (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
-  c : cs | isUpper c -> let (tok, rest) = span isAlphaNum cs
+  c : cs | isUpper c -> let (tok, rest) = span isNameChar cs
                         in [Pos $ PToken $ Sym (c:tok), Neg Tokens, Pos $ PToken $ Str rest]
   c : cs | c `elem` "(){}[]" -> [Pos $ PToken $ Paren c, Neg Tokens, Pos $ PToken $ Str cs]
   '"' : cs -> strToken cs "\""
@@ -228,6 +228,9 @@ strToken ('"':cs) s = let t = read (reverse ('"':s))
                       in [Pos $ PToken $ Str t, Neg Tokens, Pos $ PToken $ Str cs]
 strToken (c:cs) s   = strToken cs (c:s)
 strToken [] s       = [runtimeError "unexpected end of input in string literal" (PToken $ Str s)]
+
+isNameChar :: Char -> Bool
+isNameChar c = isAlphaNum c || c == '_'
 
 opChar :: String
 opChar = "+-*=!?/\\|<>$@#%^&~,.:;"
