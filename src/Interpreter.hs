@@ -97,3 +97,9 @@ execProc pr = case pr of
     PToken (Str s) -> s
     _              -> show p
 
+interpretHandle :: Handle -> IO ExitCode
+interpretHandle h = do
+  -- prepend the prelude to the input
+  pr <- readFile "prelude.fluent"
+  s <- hGetContents h
+  execProc . interactHandler . defHandler [] . cont $ kernel (pr ++ s)

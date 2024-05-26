@@ -2,12 +2,10 @@ module Main (main) where
 
 import           System.Exit
 
-import           Handler
 import           Interpreter
-import           Proc
+import           System.IO   (stdin)
 
 main :: IO ()
 main = do
-  s <- getContents
-  xc <- execProc . interactHandler . defHandler [] . cont $ kernel s
+  xc <- interpretHandle stdin
   exitWith xc
