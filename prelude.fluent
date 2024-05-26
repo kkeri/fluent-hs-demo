@@ -1,0 +1,16 @@
+
+# Apply a list to the first argument.
+def apply (vals flat)
+
+# Apply a list on the right of the first argument.
+def dip (apply cons swap)
+
+# Check if the next term is a specific token, fail if not.
+def match (cond () (error) eqtok)
+
+# Printing
+def newline (print "\n")
+def println (print dip (newline))
+def section (newline print dip (print ": "))
+
+println "prelude loaded"
