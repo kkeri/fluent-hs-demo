@@ -17,11 +17,14 @@ parser s = [ Neg Lists
 
 -- A program that interpreters a flat list of terms.
 -- kernel (s ++ t) = (kernel s) ++ (kernel t)
-kernel :: Prog Neg Pos
-kernel = [Neg Vals, Neg Defs]
+ipr :: Prog Neg Pos
+ipr = [Neg Vals, Neg Defs]
+
+kernel :: String -> Prog Neg Pos
+kernel s = ipr ++ parser s
 
 main :: IO ()
 main = do
   s <- getContents
-  xc <- execIO . interactHandler . defHandler [] . cont $ kernel ++ parser s
+  xc <- execIO . interactHandler . defHandler [] . cont $ kernel s
   exitWith xc
