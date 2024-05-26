@@ -11,6 +11,8 @@ def match (cond () (error) eqtok)
 # Printing
 def newline (print "\n")
 def println (print dip (newline))
+
+# Testing
 def section (newline print dip (print ": "))
 
 println "prelude loaded"
