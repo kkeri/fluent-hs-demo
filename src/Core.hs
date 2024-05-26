@@ -27,7 +27,7 @@ data Token
 
 data Neg
   = NToken Token        -- A token that is used as a combinator
-  | Part Neg [Pos]      -- Partial application
+  | NPart Neg [Pos]      -- Partial application
 
 data Pos
   = PToken Token        -- Token
@@ -137,11 +137,11 @@ interact n p = case (n, p) of
 
   (Drop, _)                    -> Just []
 
-  (Swap, a)                    -> Just [Neg $ Part Swap [a]]
-  (Part Swap [a], b)           -> Just [Pos b, Pos a]
+  (Swap, a)                    -> Just [Neg $ NPart Swap [a]]
+  (NPart Swap [a], b)          -> Just [Pos b, Pos a]
 
-  (Cons, a)                    -> Just [Neg $ Part Cons [a]]
-  (Part Cons [a], b)           -> Just [Pos $ Pair a b]
+  (Cons, a)                    -> Just [Neg $ NPart Cons [a]]
+  (NPart Cons [a], b)          -> Just [Pos $ Pair a b]
 
   (Uncons, Pair a b)           -> Just [Pos a, Pos b]
   (Uncons, _)                  -> Just [runtimeError "uncons: not a list: " p]
@@ -170,23 +170,23 @@ interact n p = case (n, p) of
 
   (Fix, f)                     -> Just [Neg Vals, Neg Flat, Pos f, Pos $ Pair (PToken (Name "fix")) $ Pair f Nil]
 
-  (Cond, a)                    -> Just [Neg $ Part Cond [a]]
-  (Part Cond [a, _], True)     -> Just [Neg Vals, Neg Flat, Pos a]
-  (Part Cond [_, b], _)        -> Just [Neg Vals, Neg Flat, Pos b]
-  (Part Cond [a], b)           -> Just [Neg $ Part Cond [a, b]]
+  (Cond, a)                    -> Just [Neg $ NPart Cond [a]]
+  (NPart Cond [a, _], True)    -> Just [Neg Vals, Neg Flat, Pos a]
+  (NPart Cond [_, b], _)       -> Just [Neg Vals, Neg Flat, Pos b]
+  (NPart Cond [a], b)          -> Just [Neg $ NPart Cond [a, b]]
 
-  (EqTok, a)                   -> Just [Neg $ Part EqTok [a]]
-  (Part EqTok [PToken t], PToken t') -> Just [Pos $ if t == t' then True else False]
-  (Part EqTok [Nil], Nil)       -> Just [Pos True]
-  (Part EqTok [_], _)          -> Just [Pos False]
+  (EqTok, a)                   -> Just [Neg $ NPart EqTok [a]]
+  (NPart EqTok [PToken t], PToken t') -> Just [Pos $ if t == t' then True else False]
+  (NPart EqTok [Nil], Nil)     -> Just [Pos True]
+  (NPart EqTok [_], _)         -> Just [Pos False]
 
   (NError, a)                  -> Just [Pos $ PError a]
 
-  (NCont, PCont k)             -> Just [Neg $ Part NCont [PCont k]]
-  -- (Part NCont [PCont k], a)    -> Just $ cont (k a)
+  (NCont, PCont k)             -> Just [Neg $ NPart NCont [PCont k]]
+  -- (NPart NCont [PCont k], a)    -> Just $ cont (k a)
 
-  (Effect, a)                  -> Just [Neg $ Part Effect [a]]
-  -- (Part Effect [a], b)         -> effect a b
+  (Effect, a)                  -> Just [Neg $ NPart Effect [a]]
+  -- (NPart Effect [a], b)         -> effect a b
 
   (Neg_, PToken t)             -> Just [Neg $ NToken t]
   (Neg_, a)                    -> Just [runtimeError "neg: not a token: " a]
@@ -243,8 +243,8 @@ eval a                 = Pos a
 -- Quote a negative value.
 quote :: Neg -> [Pos]
 -- predefined combinators
-quote (NToken t)  = [PToken t]
-quote (Part n ps) = quote n ++ ps
+quote (NToken t)   = [PToken t]
+quote (NPart n ps) = quote n ++ ps
 
 
 apply :: Pos -> Prog Neg Pos
