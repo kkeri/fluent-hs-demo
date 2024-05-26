@@ -197,6 +197,10 @@ It is done by the `vals` combinator, which converts abstract syntax into
 an executable program.
 Evaluation stops at the second `End` terminator.
 
+This kernel is more simple than the kernel used in the implementation
+but it is sufficient for understanding the concept.
+To see the full kernel, look at `src/Interpreter.hs`.
+
 
 ## Steps towards semantics
 
