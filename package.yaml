@@ -31,6 +31,7 @@ ghc-options:
 - -Wpartial-fields
 - -Wredundant-constraints
 - -Wno-name-shadowing
+- -Wno-missing-pattern-synonym-signatures
 
 library:
   source-dirs: src

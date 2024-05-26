@@ -1,21 +1,14 @@
 -- Native effect handlers.
 
 {-# LANGUAGE PatternSynonyms #-}
-{-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use lambda-case" #-}
 
 module Handler where
 
-import           Control.Exception (try)
-import           Control.Monad     (when)
 import           Core
-import           GHC.IO.Exception  (IOErrorType (ResourceVanished),
-                                    IOException (..))
 import           Prelude           hiding (interact)
 import           Proc
-import           System.Exit       (ExitCode (..))
-import           System.IO         hiding (interact)
 
 
 ------------------------------------------------------------------------------
@@ -101,65 +94,3 @@ defHandler e pr = case pr of
       Just v  -> defHandler e . k $ [Pos v]
       Nothing -> defHandler e . k $ [runtimeError "def: not found: " name]
     _             -> defHandler e . k $ [runtimeError "def: not a lowercase name: " name]
-
-------------------------------------------------------------------------------
--- Terminal IO handler
-------------------------------------------------------------------------------
-
-pattern Print      = Combinator "print"
-pattern LoadFile   = Combinator "loadfile"
-
--- Execute a process interactively and handles a couple of IO effects.
-execIO :: Proc Neg Pos -> IO ExitCode
-execIO pr = case pr of
-  PInter n p k -> handleInter n p k
-  POutput t k  -> do
-    case t of
-      PError p -> do
-        putStr "error: "
-        print p
-        return (ExitFailure 1)
-      _ -> do
-        putStr (show t)
-        putStr " "
-        isTerminal <- hIsTerminalDevice stdout
-        when isTerminal $ hFlush stdout
-        execIO . k $ []
-  PInput _     -> return ExitSuccess
-  PFinish      -> return ExitSuccess
-  where
-
-  handleInter :: Neg -> Pos -> Cont Neg Pos -> IO ExitCode
-  handleInter n p k = case n of
-    Print -> handlePrint p k
-    LoadFile -> handleLoadFile p k
-    _ -> do
-      putStrLn ("undefined interaction: " ++ show n ++ " " ++ show p)
-      return (ExitFailure 1)
-
-  handlePrint :: Pos -> Cont Neg Pos -> IO ExitCode
-  handlePrint p k = do
-    putStr (toString p)
-    isTerminal <- hIsTerminalDevice stdout
-    when isTerminal $ hFlush stdout
-    execIO . k $ []
-
-  handleLoadFile :: Pos -> Cont Neg Pos -> IO ExitCode
-  handleLoadFile p k = case p of
-    PToken (Str path) -> do
-      res <- try (readFile path)
-      case res of
-        Left e -> case e of
-          IOError {ioe_type = ResourceVanished} ->
-            execIO . k $ [runtimeError "loadfile: file not found: " p]
-          _ -> do
-            execIO . k $ [runtimeError "loadfile: error reading file " p]
-        Right s -> do
-          execIO . k $ [Pos $ PToken (Str s)]
-    _ -> do
-      execIO . k $ [runtimeError "loadfile: not a string: " p]
-
-  toString :: Pos -> String
-  toString p = case p of
-    PToken (Str s) -> s
-    _              -> show p
