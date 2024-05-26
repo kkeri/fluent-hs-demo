@@ -39,7 +39,6 @@ interactHandler pr = case pr of
 pattern Defs   = Combinator "defs"
 pattern Def    = Combinator "def"
 pattern GetDef = Combinator "getdef"
-pattern Print  = Combinator "print"
 
 -- Usage:
 -- - Insert a `defHandler` into the handler chain.
@@ -101,6 +100,8 @@ defHandler e pr = case pr of
 ------------------------------------------------------------------------------
 -- Execute a process interactively.
 ------------------------------------------------------------------------------
+
+pattern Print  = Combinator "print"
 
 execIO :: Proc Neg Pos -> IO ExitCode
 execIO pr = case pr of
