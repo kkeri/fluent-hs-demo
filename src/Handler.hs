@@ -2,15 +2,20 @@
 
 {-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-missing-pattern-synonym-signatures #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use lambda-case" #-}
 
 module Handler where
 
-import           Control.Monad (when)
+import           Control.Exception (try)
+import           Control.Monad     (when)
 import           Core
-import           Prelude       hiding (interact)
+import           GHC.IO.Exception  (IOErrorType (ResourceVanished),
+                                    IOException (..))
+import           Prelude           hiding (interact)
 import           Proc
-import           System.Exit   (ExitCode (..))
-import           System.IO     hiding (interact)
+import           System.Exit       (ExitCode (..))
+import           System.IO         hiding (interact)
 
 
 ------------------------------------------------------------------------------
@@ -58,12 +63,12 @@ defHandler e pr = case pr of
 
   handleInter :: Neg -> Pos -> Cont Neg Pos -> Proc Neg Pos
   handleInter n p k = case n of
-    Defs         -> handleDefs p k
-    Def          -> defHandler e . k $ [Neg $ Part Def [p]]
-    Part Def [m] -> handleDef m p k
-    Eval         -> handleEval p k
-    GetDef       -> handleGetDef p k
-    _            -> PInter n p (defHandler e . k)
+    Defs          -> handleDefs p k
+    Def           -> defHandler e . k $ [Neg $ NPart Def [p]]
+    NPart Def [m] -> handleDef m p k
+    Eval          -> handleEval p k
+    GetDef        -> handleGetDef p k
+    _             -> PInter n p (defHandler e . k)
 
   -- Detect definitions in the program.
   handleDefs :: Pos -> Cont Neg Pos -> Proc Neg Pos
@@ -98,11 +103,13 @@ defHandler e pr = case pr of
     _             -> defHandler e . k $ [runtimeError "def: not a lowercase name: " name]
 
 ------------------------------------------------------------------------------
--- Execute a process interactively.
+-- Terminal IO handler
 ------------------------------------------------------------------------------
 
-pattern Print  = Combinator "print"
+pattern Print      = Combinator "print"
+pattern LoadFile   = Combinator "loadfile"
 
+-- Execute a process interactively and handles a couple of IO effects.
 execIO :: Proc Neg Pos -> IO ExitCode
 execIO pr = case pr of
   PInter n p k -> handleInter n p k
@@ -117,19 +124,40 @@ execIO pr = case pr of
         putStr " "
         isTerminal <- hIsTerminalDevice stdout
         when isTerminal $ hFlush stdout
-        execIO (k [])
+        execIO . k $ []
   PInput _     -> return ExitSuccess
   PFinish      -> return ExitSuccess
   where
 
   handleInter :: Neg -> Pos -> Cont Neg Pos -> IO ExitCode
   handleInter n p k = case n of
-    Print -> do
-      putStr (toString p)
-      execIO (k [])
+    Print -> handlePrint p k
+    LoadFile -> handleLoadFile p k
     _ -> do
       putStrLn ("undefined interaction: " ++ show n ++ " " ++ show p)
       return (ExitFailure 1)
+
+  handlePrint :: Pos -> Cont Neg Pos -> IO ExitCode
+  handlePrint p k = do
+    putStr (toString p)
+    isTerminal <- hIsTerminalDevice stdout
+    when isTerminal $ hFlush stdout
+    execIO . k $ []
+
+  handleLoadFile :: Pos -> Cont Neg Pos -> IO ExitCode
+  handleLoadFile p k = case p of
+    PToken (Str path) -> do
+      res <- try (readFile path)
+      case res of
+        Left e -> case e of
+          IOError {ioe_type = ResourceVanished} ->
+            execIO . k $ [runtimeError "loadfile: file not found: " p]
+          _ -> do
+            execIO . k $ [runtimeError "loadfile: error reading file " p]
+        Right s -> do
+          execIO . k $ [Pos $ PToken (Str s)]
+    _ -> do
+      execIO . k $ [runtimeError "loadfile: not a string: " p]
 
   toString :: Pos -> String
   toString p = case p of
