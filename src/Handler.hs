@@ -5,10 +5,12 @@
 
 module Handler where
 
+import           Control.Monad (when)
 import           Core
-import           Prelude     hiding (interact)
+import           Prelude       hiding (interact)
 import           Proc
-import           System.Exit (ExitCode (..))
+import           System.Exit   (ExitCode (..))
+import           System.IO     hiding (interact)
 
 
 ------------------------------------------------------------------------------
@@ -112,6 +114,8 @@ execIO pr = case pr of
       _ -> do
         putStr (show t)
         putStr " "
+        isTerminal <- hIsTerminalDevice stdout
+        when isTerminal $ hFlush stdout
         execIO (k [])
   PInput _     -> return ExitSuccess
   PFinish      -> return ExitSuccess
