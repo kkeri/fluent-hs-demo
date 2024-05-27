@@ -49,7 +49,7 @@ execProc pr = case pr of
   POutput t k  -> do
     case t of
       PError p -> do
-        putStr "error: "
+        putStr "error "
         print p
         return (ExitFailure 1)
       _ -> do

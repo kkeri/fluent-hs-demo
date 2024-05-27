@@ -8,7 +8,7 @@
 
 # Erase a sequence of A's
 def eraseA
-    (cond (eraseA drop) () eqtok A dup)
+    (cond (eraseA drop) () eq A dup)
 
 eraseA ;
 eraseA ;
@@ -23,15 +23,15 @@ def eraseC
     (cond (eraseC drop) 
           (cond (eraseD drop)
                 ()
-                eqtok D dup)
-          eqtok C dup)
+                eq D dup)
+          eq C dup)
 
 def eraseD
       (cond (eraseD drop) 
             (cond (eraseC drop)
                   ()
-                  eqtok D dup)
-            eqtok C dup)
+                  eq D dup)
+            eq C dup)
 
 eraseC ;
 eraseD ;

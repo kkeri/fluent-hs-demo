@@ -17,16 +17,16 @@ def passNat
     (cond (S passNat drop)
           (cond ()
                 (error)
-                eqtok Z dup)
-          eqtok S dup)
+                eq Z dup)
+          eq S dup)
 
 # Add two flat Nats.
 def addNat
     (cond (S addNat drop)
           (cond (passNat drop)
                 (error)
-                eqtok Z dup)
-          eqtok S dup)
+                eq Z dup)
+          eq S dup)
 
 section "addNat"
 
@@ -49,8 +49,8 @@ def nestNat
     (cond (cons S nestNat drop)
           (cond ((Z) drop)
                 (error)
-                eqtok Z dup)
-          eqtok S dup)
+                eq Z dup)
+          eq S dup)
 
 section "nestNat"
 
@@ -70,8 +70,8 @@ def flatNat
     (cond (S flatNat drop)
           (cond (Z drop drop)  # drop Nil too
                 (error)
-                eqtok Z dup)
-          eqtok S dup uncons)
+                eq Z dup)
+          eq S dup uncons)
 
 
 section "flatNat"
@@ -85,8 +85,8 @@ def passNNat
     (cond (cons S passNNat drop)
           (cond ((Z) drop drop)
                 (error)
-                eqtok Z dup)
-          eqtok S dup uncons)
+                eq Z dup)
+          eq S dup uncons)
 
 section "passNNat"
 passNNat (Z) ;
@@ -98,8 +98,8 @@ def addNNat
     (cond (cons S addNNat drop)
           (cond (passNNat drop drop)
                 (error)
-                eqtok Z dup)
-          eqtok S dup uncons)
+                eq Z dup)
+          eq S dup uncons)
 
 section "addNNat"
 

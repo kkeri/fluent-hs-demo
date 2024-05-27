@@ -8,7 +8,7 @@ module Core where
 
 import           Data.Char   (isAlphaNum, isSpace)
 import           GHC.Unicode (isLower, isUpper)
-import           Prelude     hiding (False, True, interact)
+import           Prelude     hiding (interact)
 
 import           Proc
 
@@ -17,21 +17,22 @@ import           Proc
 ------------------------------------------------------------------------------
 
 data Token
-  = Name String         -- Lowercase name
-  | Sym String          -- Capitalized name
-  | Op String           -- Operator symbol
-  | Paren Char          -- Parenthesis
-  | Str String          -- String literal
+  = Name String          -- Lowercase name
+  | Sym String           -- Capitalized name
+  | Op String            -- Operator symbol
+  | Paren Char           -- Parenthesis
+  | Str String           -- String literal
   deriving (Eq)
 
 data Neg
-  = NToken Token        -- A token that is used as a combinator
+  = NComb Token          -- Combinator
   | NPart Neg [Pos]      -- Partial application
 
 data Pos
-  = PToken Token        -- Token
-  | Pair Pos Pos        -- Building block of lists
-  | PError Pos          -- Runtime error
+  = PToken Token         -- Token
+  | PPair Pos Pos        -- Building block of lists
+  | PEnd                 -- End of flat list
+  | PError Pos           -- Runtime error
   | PCont (Cont Neg Pos) -- Continuation
 
 ------------------------------------------------------------------------------
@@ -39,43 +40,41 @@ data Pos
 ------------------------------------------------------------------------------
 
 pattern Combinator :: String -> Neg
-pattern Combinator s = NToken (Name s)
+pattern Combinator s = NComb (Name s)
 
 pattern Symbol :: String -> Pos
 pattern Symbol s = PToken (Sym s)
 
-pattern Dup     = Combinator "dup"
-pattern Swap    = Combinator "swap"
-pattern Drop    = Combinator "drop"
+pattern Dup       = Combinator "dup"
+pattern Swap      = Combinator "swap"
+pattern Drop      = Combinator "drop"
+pattern Cons      = Combinator "cons"
+pattern Uncons    = Combinator "uncons"
+pattern Tokens    = Combinator "tokens"
+pattern List      = Combinator "list"
+pattern Lists     = Combinator "lists"
+pattern Nest      = Combinator "nest"
+pattern Flat      = Combinator "flat"
+pattern Eval      = Combinator "eval"
+pattern Vals      = Combinator "vals"
+pattern Fix       = Combinator "fix"
+pattern NDump     = Combinator "ndump"
+pattern Cond      = Combinator "cond"
+pattern Eq        = Combinator "eq"
+pattern NError    = Combinator "error"
+pattern NCont     = Combinator "ncont"
+pattern Effect    = Combinator "effect"
+pattern Neg_      = Combinator "neg"
+pattern IsName    = Combinator "isname"
+pattern IsSym     = Combinator "issym"
+pattern IsList    = Combinator "islist"
+pattern ExprKind  = Combinator "exprkind"
+pattern TokenKind = Combinator "tokenkind"
 
-pattern Cons    = Combinator "cons"
-pattern Uncons  = Combinator "uncons"
-
-pattern Tokens  = Combinator "tokens"
-pattern List    = Combinator "list"
-pattern Lists   = Combinator "lists"
-pattern Nest    = Combinator "nest"
-pattern Flat    = Combinator "flat"
-pattern Eval    = Combinator "eval"
-pattern Vals    = Combinator "vals"
-pattern Fix     = Combinator "fix"
-pattern NDump   = Combinator "ndump"
-pattern Cond    = Combinator "cond"
-pattern EqTok   = Combinator "eqtok"
-pattern NError  = Combinator "nerror"
-pattern NCont   = Combinator "ncont"
-pattern Effect  = Combinator "effect"
-pattern Neg_    = Combinator "neg"
-
-pattern IsName  = Combinator "isname"
-pattern IsSym   = Combinator "issym"
-pattern IsList  = Combinator "islist"
-
-pattern Nil     = Symbol "Nil"
-pattern End     = Symbol "End"
+pattern PNil    = Symbol "Nil"
 pattern PDump   = Symbol "PDump"
-pattern True    = Symbol "True"
-pattern False   = Symbol "False"
+pattern PTrue   = Symbol "True"
+pattern PFalse  = Symbol "False"
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -89,22 +88,17 @@ instance Show Token where
   show (Str s)   = show s
 
 instance Show Pos where
-  show (PToken t) = show t
-
-  show (Pair a b) = "(" ++ showPair a b ++ ")"
-  show Nil        = "()"
-  show End        = "End"
-  show PDump      = "PDump"
-
-  show True       = "True"
-  show False      = "False"
-  show (PError e) = "error " ++ show e
-  show (PCont _)  = "<cont>"
+  show (PToken t)  = show t
+  show (PPair a b) = "(" ++ showPair a b ++ ")"
+  show PEnd        = "End"
+  show PNil        = "()"
+  show (PError e)  = "error " ++ show e
+  show (PCont _)   = "<cont>"
 
 showPair :: Pos -> Pos -> String
-showPair a (Pair b c) = show a <> " " ++ showPair b c
-showPair a Nil        = show a
-showPair a b          = show a ++ " . " ++ show b
+showPair a (PPair b c) = show a <> " " ++ showPair b c
+showPair a PNil        = show a
+showPair a b           = show a ++ " . " ++ show b
 
 -- Show a sequence of positive values.
 showPosList :: [Pos] -> String
@@ -140,44 +134,42 @@ interact n p = case (n, p) of
   (NPart Swap [a], b)          -> Just [Pos b, Pos a]
 
   (Cons, a)                    -> Just [Neg $ NPart Cons [a]]
-  (NPart Cons [a], b)          -> Just [Pos $ Pair a b]
+  (NPart Cons [a], b)          -> Just [Pos $ PPair a b]
 
-  (Uncons, Pair a b)           -> Just [Pos a, Pos b]
+  (Uncons, PPair a b)          -> Just [Pos a, Pos b]
   (Uncons, _)                  -> Just [runtimeError "uncons: not a list: " p]
 
   (Tokens, PToken (Str s))     -> Just (tokens s)
   (Tokens, _)                  -> Just [runtimeError "tokens: not a string: " p]
 
-  (List, PToken (Paren ')'))   -> Just [Pos Nil]
+  (List, PToken (Paren ')'))   -> Just [Pos PNil]
   (List, a)                    -> Just [Neg Cons, Pos a, Neg List]
 
-  (Lists, End)                 -> Just [Pos End]
+  (Lists, PEnd)                -> Just [Pos PEnd]
   (Lists, PToken (Paren '('))  -> Just [Neg List, Neg Lists]
   (Lists, a)                   -> Just [Pos a, Neg Lists]
 
-  (Nest, End)                  -> Just [Pos Nil]
+  (Nest, PEnd)                 -> Just [Pos PNil]
   (Nest, a)                    -> Just [Neg Cons, Pos a, Neg Nest]
 
-  (Flat, Nil)                  -> Just [Pos End]
-  (Flat, Pair a b)             -> Just [Pos a, Neg Flat, Pos b]
+  (Flat, PNil)                 -> Just [Pos PEnd]
+  (Flat, PPair a b)            -> Just [Pos a, Neg Flat, Pos b]
   (Flat, a)                    -> Just [runtimeError "flat: not a list: " a]
 
   (Eval, a)                    -> Just [eval a]
 
-  (Vals, End)                  -> Just []
+  (Vals, PEnd)                 -> Just []
   (Vals, a)                    -> Just [Neg Eval, Pos a, Neg Vals]
 
-  (Fix, f)                     -> Just [Neg Vals, Neg Flat, Pos f, Pos $ Pair (PToken (Name "fix")) $ Pair f Nil]
+  (Fix, f)                     -> Just [Neg Vals, Neg Flat, Pos f, Pos $ PPair (PToken (Name "fix")) $ PPair f PNil]
 
   (Cond, a)                    -> Just [Neg $ NPart Cond [a]]
-  (NPart Cond [a, _], True)    -> Just [Neg Vals, Neg Flat, Pos a]
+  (NPart Cond [a, _], PTrue)   -> Just [Neg Vals, Neg Flat, Pos a]
   (NPart Cond [_, b], _)       -> Just [Neg Vals, Neg Flat, Pos b]
   (NPart Cond [a], b)          -> Just [Neg $ NPart Cond [a, b]]
 
-  (EqTok, a)                   -> Just [Neg $ NPart EqTok [a]]
-  (NPart EqTok [PToken t], PToken t') -> Just [Pos $ if t == t' then True else False]
-  (NPart EqTok [Nil], Nil)     -> Just [Pos True]
-  (NPart EqTok [_], _)         -> Just [Pos False]
+  (Eq, a)                      -> Just [Neg $ NPart Eq [a]]
+  (NPart Eq [a], b)            -> Just [Pos $ if posEq a b then PTrue else PFalse]
 
   (NError, a)                  -> Just [Pos $ PError a]
 
@@ -187,29 +179,31 @@ interact n p = case (n, p) of
   (Effect, a)                  -> Just [Neg $ NPart Effect [a]]
   -- (NPart Effect [a], b)         -> effect a b
 
-  (Neg_, PToken t)             -> Just [Neg $ NToken t]
+  (Neg_, PToken t)             -> Just [Neg $ NComb t]
   (Neg_, a)                    -> Just [runtimeError "neg: not a token: " a]
 
-  (IsName, PToken (Name _))    -> Just [Pos True]
-  (IsName, _)                  -> Just [Pos False]
+  (IsName, PToken (Name _))    -> Just [Pos PTrue]
+  (IsName, _)                  -> Just [Pos PFalse]
 
-  (IsSym, PToken (Sym _))      -> Just [Pos True]
-  (IsSym, _)                   -> Just [Pos False]
+  (IsSym, PToken (Sym _))      -> Just [Pos PTrue]
+  (IsSym, _)                   -> Just [Pos PFalse]
 
-  (IsList, Nil)                -> Just [Pos True]
-  (IsList, Pair _ _)           -> Just [Pos True]
-  (IsList, _)                  -> Just [Pos False]
+  (IsList, PNil)               -> Just [Pos PTrue]
+  (IsList, PPair _ _)          -> Just [Pos PTrue]
+  (IsList, _)                  -> Just [Pos PFalse]
+
+  (ExprKind, a)                -> Just [Pos $ PToken $ Sym $ posKind a]
 
   -- undefined interactions
   _                            -> Nothing
 
 runtimeError :: String -> Pos -> Value Neg Pos
-runtimeError msg t = Pos (PError $ Pair (PToken (Str msg)) $ Pair t Nil)
+runtimeError msg t = Pos (PError $ PPair (PToken (Str msg)) $ PPair t PNil)
 
 -- Lazily splits a string to a flat list of tokens.
 tokens :: String -> Prog Neg Pos
 tokens s = case s of
-  [] -> [Pos End]
+  [] -> [Pos PEnd]
   c : cs | isSpace c -> tokens cs
   c : cs | c == '#' -> let (_, rest) = span (/= '\n') cs in tokens rest
   c : cs | c `elem` opChar -> let (tok, rest) = span (`elem` opChar) cs
@@ -236,16 +230,37 @@ opChar = "+-*=!?/\\|<>$@#%^&~,.:;"
 
 -- Evaluate a positive term.
 eval :: Pos -> Value Neg Pos
-eval (PToken (Name n)) = Neg (Combinator n)
-eval a                 = Pos a
+eval (PToken (Name n))    = Neg (Combinator n)
+eval (PToken (Sym "End")) = Pos PEnd
+eval a                    = Pos a
 
 -- Quote a negative value.
 quote :: Neg -> [Pos]
 -- predefined combinators
-quote (NToken t)   = [PToken t]
+quote (NComb t)    = [PToken t]
 quote (NPart n ps) = quote n ++ ps
 
-
 apply :: Pos -> Prog Neg Pos
-apply (Pair a b) = [Neg Vals, Neg Flat, Pos $ Pair a b]
-apply a          = [eval a]
+apply (PPair a b) = [Neg Vals, Neg Flat, Pos $ PPair a b]
+apply a           = [eval a]
+
+posKind :: Pos -> String
+posKind (PToken _)  = "Token"
+posKind (PPair _ _) = "Pair"
+posKind PEnd        = "End"
+posKind (PError _)  = "Error"
+posKind (PCont _)   = "Cont"
+
+tokenKind :: Token -> String
+tokenKind (Name _)  = "Name"
+tokenKind (Sym _)   = "Symbol"
+tokenKind (Op _)    = "Operator"
+tokenKind (Paren _) = "Paren"
+tokenKind (Str _)   = "String"
+
+posEq :: Pos -> Pos -> Bool
+posEq (PToken t) (PToken t')    = t == t'
+posEq (PPair a b) (PPair a' b') = posEq a a' && posEq b b'
+posEq PEnd PEnd                 = True
+posEq (PError e) (PError e')    = posEq e e'
+posEq _ _                       = False

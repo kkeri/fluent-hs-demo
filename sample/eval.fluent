@@ -1,0 +1,17 @@
+# User-defined evaluation
+
+def eval_
+    (cond (neg)
+          ()
+          isname dup)
+
+def vals_
+    (cond (drop)
+          (eval_ dip (vals_))
+          eq End dup)
+
+X ;
+(A) ;
+flat (a) ;
+flat (dup) ;
+# vals_ flat (dup) X ;

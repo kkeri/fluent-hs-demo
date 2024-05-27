@@ -6,7 +6,7 @@ def apply (vals flat)
 def dip (apply cons swap)
 
 # Check if the next term is a specific token, fail if not.
-def match (cond () (error) eqtok)
+def match (cond () (error cons "mismatch: ") eq)
 
 # Printing
 def newline (print "\n")
